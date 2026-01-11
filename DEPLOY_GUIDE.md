@@ -120,11 +120,15 @@ Website này có 2 phần:
    - Import repository GitHub của bạn
    - Hoặc upload folder `client`
 
-3. **Cấu hình**:
+3. **Cấu hình** (QUAN TRỌNG - Đọc kỹ):
    - **Framework Preset**: `Create React App`
-   - **Root Directory**: `client`
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `build`
+   - **Root Directory**: `client` ⚠️ **BẮT BUỘC** - Phải set đúng, nếu không Vercel sẽ build ở root và báo lỗi
+   - **Build Command**: Để trống (Vercel sẽ tự detect)
+   - **Output Directory**: Để trống (Vercel sẽ tự detect là `build`)
+   - **Install Command**: Để trống (Vercel sẽ tự detect)
+   - **Node.js Version**: Để mặc định hoặc chọn `18.x` hoặc `20.x`
+   
+   **Lưu ý**: Nếu không set Root Directory = `client`, Vercel sẽ chạy `npm install` ở thư mục gốc và không tìm thấy `package.json` của React app, dẫn đến lỗi build.
 
 4. **Environment Variables**:
    ```
