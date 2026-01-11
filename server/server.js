@@ -31,7 +31,27 @@ app.use('/api/news', require('./routes/news'));
 
 // Basic route
 app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to Roblox Shop API' });
+  res.json({ 
+    message: 'Welcome to Roblox Shop API',
+    status: 'running',
+    endpoints: {
+      products: '/api/products',
+      users: '/api/users',
+      orders: '/api/orders',
+      recharge: '/api/recharge',
+      admin: '/api/admin',
+      news: '/api/news'
+    }
+  });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  });
 });
 
 const PORT = process.env.PORT || 5000;

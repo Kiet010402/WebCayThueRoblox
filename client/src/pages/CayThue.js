@@ -60,7 +60,7 @@ function CayThue() {
           note: null
         },
         'COMBO Tiết Kiệm': {
-          services: [
+      services: [
             { name: 'Evo combo 2 unit', price: 50000 },
             { name: 'Combo Igris + EVO', price: 60000 },
             { name: 'Combo yakamoto + evol', price: 80000 },
@@ -106,7 +106,7 @@ function CayThue() {
           note: 'Đội hình tầm trung hoặc solo được'
         },
         'Combo': {
-          services: [
+      services: [
             { name: '3Day NewYear Event', price: 50000 },
             { name: '5Day NewYear Event', price: 80000 },
             { name: '2m5 Gingerbread', price: 50000 }
@@ -209,7 +209,7 @@ function CayThue() {
           note: null
         },
         'Weapons': {
-          services: [
+      services: [
             { name: 'Chaos demonite', price: 30000 },
             { name: 'Chaos darknite', price: 50000 }
           ],
@@ -327,12 +327,12 @@ function CayThue() {
         console.error('Error refreshing balance:', err);
       }
 
-      alert(`Đặt dịch vụ ${selectedService.name} cho game ${selectedGame.name} thành công!\nGiá: ${selectedService.price.toLocaleString('vi-VN')}đ`);
+    alert(`Đặt dịch vụ ${selectedService.name} cho game ${selectedGame.name} thành công!\nGiá: ${selectedService.price.toLocaleString('vi-VN')}đ`);
       
       // Reset form
-      setSelectedGame(null);
+    setSelectedGame(null);
       setSelectedCategory(null);
-      setSelectedService(null);
+    setSelectedService(null);
       setFormData({ category: '', service: '', username: '', password: '', backupCode: '', notes: '' });
       
       // Navigate to history
