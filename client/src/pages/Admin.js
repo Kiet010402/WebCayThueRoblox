@@ -25,7 +25,6 @@ function Admin() {
   const [newsCategory, setNewsCategory] = useState('📢 Thông Báo');
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
   const [userDetails, setUserDetails] = useState(null);
-  const [loadingUserDetails, setLoadingUserDetails] = useState(false);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingRechargesCount, setPendingRechargesCount] = useState(0);
 
@@ -39,6 +38,7 @@ function Admin() {
     }
 
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   const fetchData = async () => {
@@ -200,7 +200,6 @@ function Admin() {
 
   const handleViewUserDetails = async (userId) => {
     const token = localStorage.getItem('token');
-    setLoadingUserDetails(true);
     try {
       const response = await axios.get(`/api/admin/users/${userId}/details`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -209,8 +208,6 @@ function Admin() {
       setShowUserDetailModal(true);
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra khi tải thông tin user');
-    } finally {
-      setLoadingUserDetails(false);
     }
   };
 

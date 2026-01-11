@@ -120,15 +120,11 @@ Website này có 2 phần:
    - Import repository GitHub của bạn
    - Hoặc upload folder `client`
 
-3. **Cấu hình** (QUAN TRỌNG - Đọc kỹ):
+3. **Cấu hình**:
    - **Framework Preset**: `Create React App`
-   - **Root Directory**: `client` ⚠️ **BẮT BUỘC** - Phải set đúng, nếu không Vercel sẽ build ở root và báo lỗi
-   - **Build Command**: Để trống (Vercel sẽ tự detect)
-   - **Output Directory**: Để trống (Vercel sẽ tự detect là `build`)
-   - **Install Command**: Để trống (Vercel sẽ tự detect)
-   - **Node.js Version**: Để mặc định hoặc chọn `18.x` hoặc `20.x`
-   
-   **Lưu ý**: Nếu không set Root Directory = `client`, Vercel sẽ chạy `npm install` ở thư mục gốc và không tìm thấy `package.json` của React app, dẫn đến lỗi build.
+   - **Root Directory**: `client`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `build`
 
 4. **Environment Variables**:
    ```
@@ -140,14 +136,141 @@ Website này có 2 phần:
    - Vercel sẽ tự động build và deploy
    - Lấy URL frontend (ví dụ: `https://roblox-shop.vercel.app`)
 
-### Option 2: Netlify
+### Option 2: Netlify (Miễn phí - Tốt cho React)
 
-1. Đăng ký: https://netlify.com
-2. Drag & drop folder `client/build` (sau khi build)
-3. Hoặc connect GitHub repository
-4. Cấu hình tương tự Vercel
+1. **Đăng ký Netlify**:
+   - Truy cập: https://netlify.com
+   - Đăng ký bằng GitHub
 
-### Option 3: Build và Deploy Manual
+2. **Import Project**:
+   - Click "Add new site" → "Import an existing project"
+   - Connect repository GitHub của bạn
+
+3. **Cấu hình**:
+   - **Base directory**: `client`
+   - **Build command**: `npm run build`
+   - **Publish directory**: `client/build`
+
+4. **Environment Variables**:
+   - Click "Site settings" → "Environment variables"
+   - Thêm: `REACT_APP_API_URL` = `https://kaihonshop.onrender.com`
+
+5. **Deploy**:
+   - Click "Deploy site"
+   - Netlify sẽ tự động build và deploy
+   - URL sẽ là: `https://your-site-name.netlify.app`
+
+### Option 3: Render (Cùng platform với backend - Dễ quản lý)
+
+1. **Tạo Static Site trên Render**:
+   - Vào Render Dashboard
+   - Click "New" → "Static Site"
+
+2. **Cấu hình**:
+   - **Name**: `roblox-shop-frontend`
+   - **Repository**: Chọn repository GitHub của bạn
+   - **Root Directory**: `client`
+   - **Build Command**: `npm install && npm run build`
+   - **Publish Directory**: `build`
+
+3. **Environment Variables**:
+   - Thêm: `REACT_APP_API_URL` = `https://kaihonshop.onrender.com`
+
+4. **Deploy**:
+   - Click "Create Static Site"
+   - Render sẽ tự động build và deploy
+   - URL sẽ là: `https://your-site-name.onrender.com`
+
+### Option 4: Railway (Miễn phí - Dễ dùng)
+
+1. **Đăng ký Railway**:
+   - Truy cập: https://railway.app
+   - Đăng ký bằng GitHub
+
+2. **Tạo Project**:
+   - Click "New Project" → "Deploy from GitHub repo"
+   - Chọn repository của bạn
+
+3. **Cấu hình**:
+   - Railway sẽ tự detect React app
+   - Set **Root Directory**: `client`
+   - Set **Build Command**: `npm run build`
+   - Set **Start Command**: `npx serve -s build` (cần install serve)
+
+4. **Environment Variables**:
+   - Thêm: `REACT_APP_API_URL` = `https://kaihonshop.onrender.com`
+
+5. **Deploy**:
+   - Railway sẽ tự động deploy
+   - URL sẽ được cung cấp tự động
+
+### Option 5: GitHub Pages (Miễn phí - Đơn giản)
+
+1. **Build React App**:
+   ```bash
+   cd client
+   npm install
+   npm run build
+   ```
+
+2. **Cấu hình package.json**:
+   Thêm vào `client/package.json`:
+   ```json
+   "homepage": "https://your-username.github.io/Web",
+   "scripts": {
+     "predeploy": "npm run build",
+     "deploy": "gh-pages -d build"
+   }
+   ```
+
+3. **Install gh-pages**:
+   ```bash
+   npm install --save-dev gh-pages
+   ```
+
+4. **Deploy**:
+   ```bash
+   npm run deploy
+   ```
+
+5. **Environment Variables**:
+   - Tạo file `.env.production` trong `client/`:
+   ```
+   REACT_APP_API_URL=https://kaihonshop.onrender.com
+   ```
+
+### Option 6: Firebase Hosting (Miễn phí - Google)
+
+1. **Install Firebase CLI**:
+   ```bash
+   npm install -g firebase-tools
+   ```
+
+2. **Login và Init**:
+   ```bash
+   firebase login
+   cd client
+   firebase init hosting
+   ```
+
+3. **Cấu hình**:
+   - **Public directory**: `build`
+   - **Single-page app**: Yes
+   - **Build command**: `npm run build`
+
+4. **Environment Variables**:
+   - Tạo file `.env.production` trong `client/`:
+   ```
+   REACT_APP_API_URL=https://kaihonshop.onrender.com
+   ```
+
+5. **Deploy**:
+   ```bash
+   npm run build
+   firebase deploy
+   ```
+
+### Option 7: Build và Deploy Manual
 
 1. **Build React App**:
    ```bash

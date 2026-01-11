@@ -1,11 +1,9 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import Banner from '../components/Banner';
 import TopRanking from '../components/TopRanking';
 import './Home.css';
 
 function Home() {
-  const navigate = useNavigate();
 
   const notices = [
     {
