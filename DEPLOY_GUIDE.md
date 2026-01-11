@@ -51,13 +51,15 @@ Website này có 2 phần:
    - Connect repository GitHub của bạn (hoặc deploy từ Git)
    - Hoặc chọn "Deploy manually"
 
-3. **Cấu hình**:
+3. **Cấu hình** (QUAN TRỌNG):
    - **Name**: `roblox-shop-api` (hoặc tên bạn muốn)
-   - **Root Directory**: `server`
+   - **Root Directory**: `server` ⚠️ **BẮT BUỘC** - phải set là `server` vì package.json nằm trong thư mục này
    - **Environment**: `Node`
    - **Build Command**: `npm install`
    - **Start Command**: `npm start`
    - **Port**: `5000` (hoặc port Render cung cấp)
+
+   **Lưu ý**: Nếu không set Root Directory = `server`, Render sẽ không tìm thấy `package.json` và báo lỗi!
 
 4. **Environment Variables** (trong Render Dashboard):
    ```
@@ -71,6 +73,11 @@ Website này có 2 phần:
    - Click "Create Web Service"
    - Render sẽ tự động build và deploy
    - Lấy URL backend (ví dụ: `https://roblox-shop-api.onrender.com`)
+
+**Hoặc sử dụng file `render.yaml` (Tự động)**:
+   - File `render.yaml` đã được tạo trong repo
+   - Khi connect GitHub repo, Render sẽ tự động detect file này
+   - Chỉ cần set Environment Variables trong dashboard
 
 ### Option 2: Railway.app
 
