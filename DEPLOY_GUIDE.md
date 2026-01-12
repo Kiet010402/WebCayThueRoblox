@@ -148,8 +148,16 @@ Website này có 2 phần:
 
 3. **Cấu hình**:
    - **Base directory**: `client`
-   - **Build command**: `npm run build`
-   - **Publish directory**: `client/build`
+   - **Build command**: `npm install && npm run build` ⚠️ **QUAN TRỌNG** - Phải có `npm install` trước
+   - **Publish directory**: `build` (không có `client/` ở đầu)
+   
+   **Hoặc tạo file `netlify.toml` trong thư mục `client/`:**
+   ```toml
+   [build]
+     base = "client"
+     command = "npm install && npm run build"
+     publish = "build"
+   ```
 
 4. **Environment Variables**:
    - Click "Site settings" → "Environment variables"
