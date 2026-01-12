@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import { getApiUrl } from '../config';
+import axios from 'axios';
 import './Auth.css';
 
 function Register({ setUser }) {
@@ -8,8 +9,7 @@ function Register({ setUser }) {
     username: '',
     email: '',
     password: '',
-    confirmPassword: '',
-    robloxUsername: ''
+    confirmPassword: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -56,11 +56,10 @@ function Register({ setUser }) {
 
     setLoading(true);
     try {
-      const response = await axios.post('/api/users/register', {
+      const response = await axios.post(getApiUrl('/api/users/register'), {
         username: formData.username,
         email: formData.email,
-        password: formData.password,
-        robloxUsername: formData.robloxUsername
+        password: formData.password
       });
 
       localStorage.setItem('token', response.data.token);
@@ -109,17 +108,6 @@ function Register({ setUser }) {
               value={formData.email}
               onChange={handleChange}
               required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>🎮 Tên Nick Roblox (tùy chọn):</label>
-            <input 
-              type="text" 
-              name="robloxUsername"
-              placeholder="Nhập tên nick Roblox"
-              value={formData.robloxUsername}
-              onChange={handleChange}
             />
           </div>
 
