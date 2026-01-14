@@ -6,8 +6,23 @@ require('dotenv').config();
 const app = express();
 
 // Middleware
+// CORS configuration - allow both production and development URLs
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://webcaythueroblox-1.onrender.com',
+  'http://localhost:3000'
+].filter(Boolean); // Remove undefined values
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins in production for now
+    }
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
