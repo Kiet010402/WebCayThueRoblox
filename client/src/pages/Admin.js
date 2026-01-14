@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 import './Admin.css';
 
 function Admin() {
@@ -25,41 +25,35 @@ function Admin() {
   const [newsCategory, setNewsCategory] = useState('📢 Thông Báo');
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
   const [userDetails, setUserDetails] = useState(null);
-  const [loadingUserDetails, setLoadingUserDetails] = useState(false);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingRechargesCount, setPendingRechargesCount] = useState(0);
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || 'null');
-    
+
     if (!token || !user || user.role !== 'admin') {
       navigate('/login');
       return;
     }
 
-    fetchData();
-  }, [navigate]);
-
-  const fetchData = async () => {
-    const token = localStorage.getItem('token');
     try {
       const [usersRes, ordersRes, rechargesRes, statsRes, newsRes] = await Promise.all([
-        axios.get('/api/admin/users', {
+        api.get('/api/admin/users', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('/api/admin/orders', {
+        api.get('/api/admin/orders', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('/api/admin/recharges', {
+        api.get('/api/admin/recharges', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('/api/admin/stats', {
+        api.get('/api/admin/stats', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('/api/news')
+        api.get('/api/news')
       ]);
-      
+
       console.log('Fetched data:', {
         users: usersRes.data,
         orders: ordersRes.data,
@@ -67,13 +61,13 @@ function Admin() {
         stats: statsRes.data,
         news: newsRes.data
       });
-      
+
       setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
       setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
       setRecharges(Array.isArray(rechargesRes.data) ? rechargesRes.data : []);
       setStats(statsRes.data);
       setNews(Array.isArray(newsRes.data) ? newsRes.data : []);
-      
+
       // Count pending orders and recharges
       const pendingOrders = Array.isArray(ordersRes.data) ? ordersRes.data.filter(order => order.status === 'Đang xử lí') : [];
       const pendingRecharges = Array.isArray(rechargesRes.data) ? rechargesRes.data.filter(recharge => recharge.status === 'Đang xử lí') : [];
@@ -91,7 +85,11 @@ function Admin() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleAddBalance = async () => {
     if (!addBalanceAmount || addBalanceAmount <= 0) {
@@ -101,7 +99,7 @@ function Admin() {
 
     const token = localStorage.getItem('token');
     try {
-      await axios.post(`/api/admin/users/${selectedUser._id}/add-balance`, 
+      await api.post(`/api/admin/users/${selectedUser._id}/add-balance`, 
         { amount: parseFloat(addBalanceAmount) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -119,7 +117,7 @@ function Admin() {
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     const token = localStorage.getItem('token');
     try {
-      await axios.put(`/api/admin/orders/${orderId}`,
+      await api.put(`/api/admin/orders/${orderId}`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -132,7 +130,7 @@ function Admin() {
   const handleApproveRecharge = async (rechargeId) => {
     const token = localStorage.getItem('token');
     try {
-      await axios.put(`/api/admin/recharges/${rechargeId}/approve`,
+      await api.put(`/api/admin/recharges/${rechargeId}/approve`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -149,7 +147,7 @@ function Admin() {
     }
     const token = localStorage.getItem('token');
     try {
-      await axios.put(`/api/admin/recharges/${rechargeId}/reject`,
+      await api.put(`/api/admin/recharges/${rechargeId}/reject`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -167,7 +165,7 @@ function Admin() {
     }
     const token = localStorage.getItem('token');
     try {
-      await axios.post('/api/news', 
+      await api.post('/api/news', 
         { title: newsTitle, content: newsContent, category: newsCategory },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -188,7 +186,7 @@ function Admin() {
     }
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`/api/news/${newsId}`, {
+      await api.delete(`/api/news/${newsId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert('Xóa tin tức thành công!');
@@ -200,17 +198,14 @@ function Admin() {
 
   const handleViewUserDetails = async (userId) => {
     const token = localStorage.getItem('token');
-    setLoadingUserDetails(true);
     try {
-      const response = await axios.get(`/api/admin/users/${userId}/details`, {
+      const response = await api.get(`/api/admin/users/${userId}/details`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUserDetails(response.data);
       setShowUserDetailModal(true);
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra khi tải thông tin user');
-    } finally {
-      setLoadingUserDetails(false);
     }
   };
 

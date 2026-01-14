@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 import './History.css';
 
 function History() {
@@ -17,7 +17,7 @@ function History() {
       }
 
       try {
-        const response = await axios.get('/api/orders/my-orders', {
+        const response = await api.get('/api/orders/my-orders', {
           headers: {
             Authorization: `Bearer ${token}`
           }

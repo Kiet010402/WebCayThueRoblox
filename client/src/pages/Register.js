@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import api from '../api/axios';
 import './Auth.css';
 
 function Register({ setUser }) {
@@ -56,7 +56,7 @@ function Register({ setUser }) {
 
     setLoading(true);
     try {
-      const response = await axios.post('/api/users/register', {
+      const response = await api.post('/api/users/register', {
         username: formData.username,
         email: formData.email,
         password: formData.password,

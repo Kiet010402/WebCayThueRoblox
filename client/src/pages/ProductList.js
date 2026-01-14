@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Link } from 'react-router-dom';
+import api from '../api/axios';
 import './ProductList.css';
 
 function ProductList() {
@@ -11,7 +11,7 @@ function ProductList() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await axios.get('/api/products');
+        const response = await api.get('/api/products');
         setProducts(response.data);
         setLoading(false);
       } catch (error) {

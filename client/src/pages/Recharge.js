@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 import './Recharge.css';
 
 function Recharge() {
@@ -69,7 +69,7 @@ function Recharge() {
 
     setLoading(true);
     try {
-      const response = await axios.post('/api/recharge', {
+      await api.post('/api/recharge', {
         amount: amount,
         paymentMethod,
         billImage

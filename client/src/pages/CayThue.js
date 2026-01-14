@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 import './CayThue.css';
 
 function CayThue() {
@@ -308,7 +308,7 @@ function CayThue() {
         backupCode: formData.backupCode || ''
       };
 
-      await axios.post('/api/orders', orderData, {
+      await api.post('/api/orders', orderData, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -316,7 +316,7 @@ function CayThue() {
 
       // Refresh user balance
       try {
-        const userRes = await axios.get('/api/users/me', {
+        const userRes = await api.get('/api/users/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
         const updatedUser = { ...user, balance: userRes.data.balance };

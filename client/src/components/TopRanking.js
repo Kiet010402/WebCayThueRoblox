@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 import './TopRanking.css';
 
 function TopRanking() {
@@ -14,7 +14,7 @@ function TopRanking() {
 
   const fetchTopRecharges = async () => {
     try {
-      const response = await axios.get('/api/recharge/top-month');
+      const response = await api.get('/api/recharge/top-month');
       const data = response.data.map((item, index) => ({
         rank: index + 1,
         username: item.username,

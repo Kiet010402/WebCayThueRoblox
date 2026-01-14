@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import './News.css';
 
 function News() {
@@ -12,7 +12,7 @@ function News() {
 
   const fetchNews = async () => {
     try {
-      const response = await axios.get('/api/news');
+      const response = await api.get('/api/news');
       setNews(response.data);
     } catch (error) {
       console.error('Error fetching news:', error);

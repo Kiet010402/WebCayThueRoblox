@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axios';
 import './ProductDetail.css';
 
 function ProductDetail() {
@@ -13,7 +13,7 @@ function ProductDetail() {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await axios.get(`/api/products/${id}`);
+        const response = await api.get(`/api/products/${id}`);
         setProduct(response.data);
         setLoading(false);
       } catch (error) {

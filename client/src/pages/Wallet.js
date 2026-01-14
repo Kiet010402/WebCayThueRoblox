@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import api from '../api/axios';
 import './Wallet.css';
 
 function Wallet() {
@@ -10,44 +10,43 @@ function Wallet() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    
-    if (!token || !user) {
-      navigate('/login');
-      return;
-    }
+    const fetchData = async () => {
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+      if (!token || !user) {
+        navigate('/login');
+        return;
+      }
+
+      try {
+        const [userRes, rechargesRes] = await Promise.all([
+          api.get('/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          api.get('/api/recharge/my-recharges', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ]);
+
+        setBalance(userRes.data.balance || 0);
+        setRecharges(rechargesRes.data);
+
+        // Update user in localStorage
+        const updatedUser = { ...JSON.parse(localStorage.getItem('user')), balance: userRes.data.balance };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
 
     fetchData();
   }, [navigate]);
-
-  const fetchData = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const [userRes, rechargesRes] = await Promise.all([
-        axios.get('/api/users/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get('/api/recharge/my-recharges', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      ]);
-      
-      setBalance(userRes.data.balance || 0);
-      setRecharges(rechargesRes.data);
-      
-      // Update user in localStorage
-      const updatedUser = { ...JSON.parse(localStorage.getItem('user')), balance: userRes.data.balance };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        navigate('/login');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
