@@ -19,7 +19,6 @@ function Wallet() {
     }
 
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   const fetchData = async () => {

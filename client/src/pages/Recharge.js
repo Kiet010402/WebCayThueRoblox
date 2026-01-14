@@ -69,7 +69,7 @@ function Recharge() {
 
     setLoading(true);
     try {
-      await axios.post('/api/recharge', {
+      const response = await axios.post('/api/recharge', {
         amount: amount,
         paymentMethod,
         billImage
