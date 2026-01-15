@@ -57,6 +57,8 @@ function Wallet() {
       // Update user in localStorage
       const updatedUser = { ...JSON.parse(localStorage.getItem('user')), balance: userRes.data.balance };
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Dispatch event to update balance in Navbar
+      window.dispatchEvent(new Event('userBalanceUpdated'));
     } catch (error) {
       console.error('Error fetching data:', error);
       if (error.response?.status === 401 || error.response?.status === 403) {
@@ -123,7 +125,15 @@ function Wallet() {
               {recharges.map(tx => (
                 <div key={tx._id} className="transaction-item">
                   <div className="tx-info">
-                    <div className="tx-type">Nạp Tiền - {tx.paymentMethod === 'bank' ? 'Chuyển Khoản' : 'MoMo'}</div>
+                    <div className="tx-type">
+                      Nạp Tiền - {
+                        tx.paymentMethod === 'bank'
+                          ? 'Chuyển Khoản'
+                          : tx.paymentMethod === 'momo'
+                            ? 'MoMo'
+                            : 'Thẻ Siêu Rẻ'
+                      }
+                    </div>
                     <div className="tx-date">{formatDate(tx.createdAt)}</div>
                     {tx.status === 'Từ chối' && tx.rejectionReason && (
                       <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#d32f2f', fontStyle: 'italic' }}>

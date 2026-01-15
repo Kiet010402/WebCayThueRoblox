@@ -8,6 +8,10 @@ function CayThue() {
   const [user, setUser] = useState(null);
   const [games, setGames] = useState([]);
   const [loadingPricing, setLoadingPricing] = useState(true);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [voucherMessage, setVoucherMessage] = useState('');
+  const [applyingVoucher, setApplyingVoucher] = useState(false);
   
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -56,11 +60,18 @@ function CayThue() {
     setSelectedCategory(null);
     setSelectedService(null);
     setFormData({ category: '', service: '', username: '', password: '', backupCode: '', notes: '' });
+    // Reset voucher khi đổi game
+    setAppliedVoucher(null);
+    setVoucherMessage('');
+    setVoucherCode('');
   };
 
   const handleServiceClick = (service) => {
     setSelectedService(service);
     setFormData({ ...formData, service: service.name });
+    // Reset voucher info when đổi dịch vụ
+    setAppliedVoucher(null);
+    setVoucherMessage('');
   };
 
   const handleInputChange = (e) => {
@@ -71,6 +82,10 @@ function CayThue() {
       setSelectedCategory(value);
       setSelectedService(null);
       setFormData({ ...formData, category: value, service: '' });
+      // Reset voucher khi đổi loại
+      setAppliedVoucher(null);
+      setVoucherMessage('');
+      setVoucherCode('');
       return;
     }
     
@@ -79,17 +94,86 @@ function CayThue() {
     
     // Khi chọn dịch vụ từ dropdown, cập nhật selectedService
     if (name === 'service' && selectedGame) {
+      let newService = null;
       if (selectedCategory && selectedGame.serviceCategories) {
         const category = selectedGame.serviceCategories[selectedCategory];
         if (category) {
-          const service = category.services.find(s => s.name === value);
-          setSelectedService(service || null);
+          newService = category.services.find(s => s.name === value);
         }
       } else if (selectedGame.services) {
         // Fallback cho các game không có serviceCategories
-        const service = selectedGame.services.find(s => s.name === value);
-        setSelectedService(service || null);
+        newService = selectedGame.services.find(s => s.name === value);
       }
+      
+      // Reset voucher khi đổi dịch vụ
+      if (newService && (!selectedService || selectedService.name !== value)) {
+        setAppliedVoucher(null);
+        setVoucherMessage('');
+        setVoucherCode('');
+      }
+      
+      setSelectedService(newService || null);
+    }
+  };
+
+  const handleApplyVoucher = async () => {
+    const token = localStorage.getItem('token');
+    const userData = JSON.parse(localStorage.getItem('user') || 'null');
+
+    if (!token || !userData) {
+      alert('Vui lòng đăng nhập để áp dụng voucher');
+      navigate('/login');
+      return;
+    }
+
+    if (!selectedService) {
+      alert('Vui lòng chọn dịch vụ trước khi áp dụng voucher');
+      return;
+    }
+
+    if (!voucherCode.trim()) {
+      alert('Vui lòng nhập mã voucher');
+      return;
+    }
+
+    const servicePrice = Number(selectedService.price);
+    if (!Number.isFinite(servicePrice) || servicePrice <= 0) {
+      alert('Giá dịch vụ không hợp lệ');
+      return;
+    }
+
+    setApplyingVoucher(true);
+    setVoucherMessage('');
+    setAppliedVoucher(null);
+
+    try {
+      const res = await api.post(
+        '/api/vouchers/apply',
+        {
+          code: voucherCode.trim().toUpperCase(),
+          amount: servicePrice,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (res.data?.valid) {
+        setAppliedVoucher(res.data);
+        setVoucherMessage(
+          `Áp dụng voucher ${res.data.code} giảm ${res.data.discount}% thành công` +
+            (res.data.minOrderAmount
+              ? ` (đơn từ ${res.data.minOrderAmount.toLocaleString('vi-VN')}đ)`
+              : '')
+        );
+      }
+    } catch (error) {
+      console.error('Voucher apply error:', error.response?.data || error.message);
+      const msg = error.response?.data?.message || 'Voucher không hợp lệ';
+      setVoucherMessage(msg);
+      setAppliedVoucher(null);
+    } finally {
+      setApplyingVoucher(false);
     }
   };
 
@@ -121,6 +205,7 @@ function CayThue() {
         gameName: selectedGame.name,
         serviceCategory: selectedCategory || null,
         totalAmount: selectedService.price,
+        voucherCode: voucherCode.trim() || undefined,
         status: 'Đang xử lí',
         robloxUsername: formData.username,
         robloxPassword: formData.password,
@@ -150,20 +235,27 @@ function CayThue() {
       // Show success message with discount info if applicable
       const order = response.data;
       let successMsg = `Đặt dịch vụ ${selectedService.name} cho game ${selectedGame.name} thành công!\n`;
+      successMsg += `Giá gốc: ${order.originalAmount.toLocaleString('vi-VN')}đ\n`;
       if (order.discountAmount > 0) {
-        successMsg += `Giá gốc: ${order.originalAmount.toLocaleString('vi-VN')}đ\n`;
-        successMsg += `Giảm ${order.discount}%: -${order.discountAmount.toLocaleString('vi-VN')}đ\n`;
-        successMsg += `Giá sau giảm: ${order.totalAmount.toLocaleString('vi-VN')}đ`;
-      } else {
-        successMsg += `Giá: ${order.totalAmount.toLocaleString('vi-VN')}đ`;
+        successMsg += `Tổng giảm: -${order.discountAmount.toLocaleString('vi-VN')}đ\n`;
+        if (order.discount) {
+          successMsg += `- Giảm tài khoản ${order.discount}%\n`;
+        }
+        if (order.voucherCode && order.voucherDiscount) {
+          successMsg += `- Voucher ${order.voucherCode}: ${order.voucherDiscount}%\n`;
+        }
       }
+      successMsg += `Giá sau giảm: ${order.totalAmount.toLocaleString('vi-VN')}đ`;
       alert(successMsg);
       
       // Reset form
-    setSelectedGame(null);
+      setSelectedGame(null);
       setSelectedCategory(null);
-    setSelectedService(null);
+      setSelectedService(null);
       setFormData({ category: '', service: '', username: '', password: '', backupCode: '', notes: '' });
+      setVoucherCode('');
+      setAppliedVoucher(null);
+      setVoucherMessage('');
       
       // Navigate to history
       navigate('/history');
@@ -250,7 +342,7 @@ function CayThue() {
             </div>
             )}
 
-            <form onSubmit={handleSubmit} className="cay-thue-form">
+            <form onSubmit={handleSubmit} className="cay-thue-form" noValidate>
               <div className="form-row">
                 {selectedGame.serviceCategories && (
                   <div className="form-group">
@@ -293,20 +385,128 @@ function CayThue() {
                 </div>
 
                 <div className="form-group">
+                  <label>Voucher</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      name="voucherCode"
+                      id="voucher-input"
+                      value={voucherCode}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        console.log('Voucher input onChange:', value);
+                        setVoucherCode(value);
+                        // Force update style to ensure text is visible
+                        e.target.style.color = '#333';
+                        e.target.style.webkitTextFillColor = '#333';
+                      }}
+                      onKeyPress={(e) => {
+                        console.log('Voucher input onKeyPress:', e.key);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && selectedService && voucherCode.trim()) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleApplyVoucher();
+                        }
+                      }}
+                      onFocus={(e) => {
+                        console.log('Voucher input focused');
+                        e.target.style.borderColor = '#2196F3';
+                        e.target.style.color = '#333';
+                        e.target.style.webkitTextFillColor = '#333';
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = '#ddd';
+                      }}
+                      placeholder="Nhập mã voucher nếu có"
+                      style={{ 
+                        flex: 1,
+                        padding: '0.8rem',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        fontSize: '1rem',
+                        fontFamily: 'inherit',
+                        backgroundColor: '#fff',
+                        color: '#333',
+                        pointerEvents: 'auto',
+                        zIndex: 10,
+                        position: 'relative',
+                        cursor: 'text',
+                        WebkitTextFillColor: '#333',
+                        opacity: '1',
+                        visibility: 'visible',
+                        outline: 'none',
+                        boxShadow: 'none',
+                        transition: 'border-color 0.3s ease'
+                      }}
+                      autoComplete="off"
+                      readOnly={false}
+                      disabled={false}
+                    />
+                    <button
+                      type="button"
+                      className="btn-submit"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleApplyVoucher();
+                      }}
+                      disabled={applyingVoucher || !selectedService}
+                      style={{ 
+                        whiteSpace: 'nowrap',
+                        padding: '0.8rem 1.5rem',
+                        marginTop: 0,
+                        backgroundColor: '#2196F3',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: applyingVoucher || !selectedService ? 'not-allowed' : 'pointer',
+                        opacity: applyingVoucher || !selectedService ? 0.6 : 1
+                      }}
+                    >
+                      {applyingVoucher ? 'Đang kiểm tra...' : 'Áp dụng'}
+                    </button>
+                  </div>
+                  {voucherMessage && (
+                    <div style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: appliedVoucher ? '#4CAF50' : '#f44336' }}>
+                      {voucherMessage}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
                   <label>Thành tiền</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={selectedService ? (() => {
                       const originalPrice = selectedService.price;
-                      const discount = user?.discount || 0;
-                      if (discount > 0 && discount <= 100) {
-                        const discountAmount = Math.round((originalPrice * discount) / 100);
-                        const finalPrice = originalPrice - discountAmount;
-                        return `${originalPrice.toLocaleString('vi-VN')}đ → ${finalPrice.toLocaleString('vi-VN')}đ (Giảm ${discount}%)`;
+                      const accountDiscount = user?.discount || 0;
+                      let priceAfterAccount = originalPrice;
+                      let parts = [];
+
+                      if (accountDiscount > 0 && accountDiscount <= 100) {
+                        const accAmount = Math.round((originalPrice * accountDiscount) / 100);
+                        priceAfterAccount -= accAmount;
+                        parts.push(`Giảm tài khoản ${accountDiscount}%: -${accAmount.toLocaleString('vi-VN')}đ`);
                       }
+
+                      let finalPrice = priceAfterAccount;
+                      if (appliedVoucher && appliedVoucher.discount > 0) {
+                        const vAmount = Math.round((priceAfterAccount * appliedVoucher.discount) / 100);
+                        finalPrice -= vAmount;
+                        parts.push(`Voucher ${appliedVoucher.code} ${appliedVoucher.discount}%: -${vAmount.toLocaleString('vi-VN')}đ`);
+                      }
+
+                      if (parts.length > 0) {
+                        return `${originalPrice.toLocaleString('vi-VN')}đ → ${finalPrice.toLocaleString('vi-VN')}đ (${parts.join(' ; ')})`;
+                      }
+
                       return `${originalPrice.toLocaleString('vi-VN')}đ`;
-                    })() : '0đ'} 
-                    disabled 
+                    })() : '0đ'}
+                    disabled
                   />
                 </div>
 

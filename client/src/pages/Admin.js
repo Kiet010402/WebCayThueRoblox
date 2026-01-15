@@ -51,6 +51,15 @@ function Admin() {
   const [rechargesTotalPages, setRechargesTotalPages] = useState(1);
   const [rechargesStatusFilter, setRechargesStatusFilter] = useState('');
   const [searchNonce, setSearchNonce] = useState(0);
+  // Voucher management
+  const [vouchers, setVouchers] = useState([]);
+  const [vouchersPage, setVouchersPage] = useState(1);
+  const [vouchersTotalPages, setVouchersTotalPages] = useState(1);
+  const [voucherStatusFilter, setVoucherStatusFilter] = useState('');
+  const [newVoucherCode, setNewVoucherCode] = useState('');
+  const [newVoucherDiscount, setNewVoucherDiscount] = useState('');
+  const [newVoucherExpiry, setNewVoucherExpiry] = useState('');
+  const [newVoucherMinAmount, setNewVoucherMinAmount] = useState('');
 
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -123,6 +132,33 @@ function Admin() {
     if (searchNonce > 0) fetchData();
   }, [searchNonce, fetchData]);
 
+  // Fetch vouchers only when voucher tab is active
+  useEffect(() => {
+    const fetchVouchers = async () => {
+      const token = localStorage.getItem('token');
+      const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
+      if (!token || !adminUser || adminUser.role !== 'admin') return;
+
+      try {
+        const statusParam = voucherStatusFilter ? `&status=${encodeURIComponent(voucherStatusFilter)}` : '';
+        const res = await api.get(
+          `/api/admin/vouchers?page=${vouchersPage}&limit=7${statusParam}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        setVouchers(Array.isArray(res.data.vouchers) ? res.data.vouchers : []);
+        setVouchersTotalPages(res.data.totalPages || 1);
+      } catch (error) {
+        console.error('Error fetching vouchers:', error);
+      }
+    };
+
+    if (activeTab === 'vouchers') {
+      fetchVouchers();
+    }
+  }, [activeTab, vouchersPage, voucherStatusFilter]);
+
   const handleAddBalance = async () => {
     const value = Number(addBalanceAmount);
     if (!Number.isFinite(value) || value <= 0) {
@@ -147,6 +183,79 @@ function Admin() {
       fetchData();
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleCreateVoucher = async () => {
+    if (!newVoucherCode.trim() || !newVoucherDiscount || !newVoucherExpiry) {
+      alert('Vui lòng nhập đầy đủ: mã, giảm giá, ngày hết hạn');
+      return;
+    }
+    const discountValue = Number(newVoucherDiscount);
+    if (!Number.isFinite(discountValue) || discountValue <= 0 || discountValue > 100) {
+      alert('Giảm giá phải trong khoảng 1 - 100%');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    try {
+      await api.post(
+        '/api/admin/vouchers',
+        {
+          code: newVoucherCode.trim(),
+          discount: discountValue,
+          expiresAt: newVoucherExpiry,
+          minOrderAmount: Number(newVoucherMinAmount) || 0,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      alert('Tạo voucher thành công');
+      setNewVoucherCode('');
+      setNewVoucherDiscount('');
+      setNewVoucherExpiry('');
+      setNewVoucherMinAmount('');
+      // Reload vouchers
+      setVouchersPage(1);
+      if (activeTab === 'vouchers') {
+        const statusParam = voucherStatusFilter ? `&status=${encodeURIComponent(voucherStatusFilter)}` : '';
+        const res = await api.get(
+          `/api/admin/vouchers?page=1&limit=7${statusParam}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        setVouchers(Array.isArray(res.data.vouchers) ? res.data.vouchers : []);
+        setVouchersTotalPages(res.data.totalPages || 1);
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi tạo voucher');
+    }
+  };
+
+  const handleDeleteVoucher = async (voucherId, voucherCode) => {
+    if (!window.confirm(`Bạn chắc chắn muốn xóa voucher "${voucherCode}"? Hành động này không thể hoàn tác.`)) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/admin/vouchers/${voucherId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Đã xóa voucher');
+      // Refetch vouchers
+      const statusParam = voucherStatusFilter ? `&status=${encodeURIComponent(voucherStatusFilter)}` : '';
+      const res = await api.get(
+        `/api/admin/vouchers?page=${vouchersPage}&limit=7${statusParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setVouchers(Array.isArray(res.data.vouchers) ? res.data.vouchers : []);
+      setVouchersTotalPages(res.data.totalPages || 1);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa voucher');
     }
   };
 
@@ -179,15 +288,69 @@ function Admin() {
     }
   };
 
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm('Bạn chắc chắn muốn xóa đơn hàng này? Hành động này không thể hoàn tác.')) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/admin/orders/${orderId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Đã xóa đơn hàng thành công');
+      fetchData();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa đơn hàng');
+    }
+  };
+
+  const handleDeleteRecharge = async (rechargeId) => {
+    if (!window.confirm('Bạn chắc chắn muốn xóa yêu cầu nạp tiền này? Hành động này không thể hoàn tác.')) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/admin/recharges/${rechargeId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Đã xóa yêu cầu nạp tiền thành công');
+      // Update local state instead of refetching all data
+      setRecharges(prev => prev.filter(r => r._id !== rechargeId));
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa yêu cầu nạp tiền');
+    }
+  };
+
   const handleApproveRecharge = async (rechargeId) => {
     const token = localStorage.getItem('token');
     try {
-      await api.put(`/api/admin/recharges/${rechargeId}/approve`,
+      const res = await api.put(`/api/admin/recharges/${rechargeId}/approve`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
       alert('Duyệt nạp tiền thành công!');
+      const updatedRecharge = res.data?.recharge;
+      if (updatedRecharge) {
+        let decreasedPending = false;
+        setRecharges(prev => {
+          const next = prev.map(r => {
+            if (r._id === rechargeId) {
+              if (r.status === 'Đang xử lí' && updatedRecharge.status === 'Hoàn thành') {
+                decreasedPending = true;
+              }
+              return { ...r, ...updatedRecharge };
+            }
+            return r;
+          });
+          return next;
+        });
+        if (decreasedPending) {
+          setPendingRechargesCount(count => Math.max(0, count - 1));
+        }
+      } else {
+        // Fallback: reload if server didn't send updated recharge
       fetchData();
+      }
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
     }
@@ -206,7 +369,7 @@ function Admin() {
     }
     const token = localStorage.getItem('token');
     try {
-      await api.put(`/api/admin/recharges/${selectedRechargeId}/reject`,
+      const res = await api.put(`/api/admin/recharges/${selectedRechargeId}/reject`,
         { rejectionReason: rejectionReason.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -214,7 +377,12 @@ function Admin() {
       setShowRejectModal(false);
       setSelectedRechargeId(null);
       setRejectionReason('');
+      const updatedRecharge = res.data?.recharge;
+      if (updatedRecharge) {
+        setRecharges(prev => prev.map(r => r._id === selectedRechargeId ? { ...r, ...updatedRecharge } : r));
+      } else {
       fetchData();
+      }
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
     }
@@ -365,6 +533,12 @@ function Admin() {
           Quản Lý Doanh Thu
         </button>
         <button 
+          className={activeTab === 'vouchers' ? 'active' : ''}
+          onClick={() => setActiveTab('vouchers')}
+        >
+          Quản Lý Voucher
+        </button>
+        <button 
           className={activeTab === 'announcement' ? 'active' : ''}
           onClick={() => setActiveTab('announcement')}
         >
@@ -420,6 +594,186 @@ function Admin() {
 
       {activeTab === 'pricing' && (
         <PricingManager />
+      )}
+
+      {activeTab === 'vouchers' && (
+        <div className="modern-table-container">
+          <div className="table-header-bar">
+            <div className="header-title">
+              <span className="info-icon">🎫</span>
+              <span>QUẢN LÝ VOUCHER</span>
+            </div>
+          </div>
+
+          <div className="table-controls">
+            <div className="control-left">
+              <select
+                className="status-filter-select"
+                value={voucherStatusFilter}
+                onChange={(e) => {
+                  setVoucherStatusFilter(e.target.value);
+                  setVouchersPage(1);
+                }}
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="active">Hoạt động</option>
+                <option value="expired">Hết hạn</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="profile-card" style={{ marginBottom: '1.5rem' }}>
+            <div className="profile-header">
+              <h2 className="section-title">Thêm voucher mới</h2>
+            </div>
+            <div className="profile-details">
+              <div className="detail-column" style={{ maxWidth: '520px' }}>
+                <div className="detail-item">
+                  <label>Mã voucher</label>
+                  <input
+                    type="text"
+                    value={newVoucherCode}
+                    onChange={(e) => setNewVoucherCode(e.target.value)}
+                    placeholder="VD: KAI10"
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Giảm giá (%)</label>
+                  <input
+                    type="number"
+                    value={newVoucherDiscount}
+                    onChange={(e) => setNewVoucherDiscount(e.target.value)}
+                    placeholder="Ví dụ: 10"
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Hết hạn vào ngày</label>
+                  <input
+                    type="date"
+                    value={newVoucherExpiry}
+                    onChange={(e) => setNewVoucherExpiry(e.target.value)}
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Áp dụng cho đơn từ (đ)</label>
+                  <input
+                    type="number"
+                    value={newVoucherMinAmount}
+                    onChange={(e) => setNewVoucherMinAmount(e.target.value)}
+                    placeholder="Ví dụ: 50000"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn-submit"
+                  onClick={handleCreateVoucher}
+                  style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }}
+                >
+                  Lưu voucher
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="modern-table">
+            <div className="modern-table-header">
+              <div className="col-code">Mã</div>
+              <div className="col-user">Giảm giá</div>
+              <div className="col-amount">Áp dụng từ</div>
+              <div className="col-date">Hết hạn</div>
+              <div className="col-status">Trạng thái</div>
+              <div className="col-actions" style={{ minWidth: '100px' }}>Thao tác</div>
+            </div>
+
+            {vouchers.length === 0 ? (
+              <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
+                Chưa có voucher nào
+              </div>
+            ) : (
+              vouchers.map((v) => (
+                <div key={v._id} className="modern-table-row">
+                  <div className="col-code" style={{ fontWeight: 'bold' }}>{v.code}</div>
+                  <div className="col-user">{v.discount}%</div>
+                  <div className="col-amount">
+                    {v.minOrderAmount ? `${v.minOrderAmount.toLocaleString('vi-VN')}đ` : '0đ'}
+                  </div>
+                  <div className="col-date">
+                    {v.expiresAt ? formatDate(v.expiresAt) : 'N/A'}
+                  </div>
+                  <div className="col-status">
+                    <span className={`status-badge status-${v.status}`}>
+                      {v.status === 'active' ? 'Hoạt động' : 'Hết hạn'}
+                    </span>
+                  </div>
+                  <div className="col-actions">
+                    <button
+                      onClick={() => handleDeleteVoucher(v._id, v.code)}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        backgroundColor: '#f44336',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        transition: 'all 0.3s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#d32f2f';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#f44336';
+                      }}
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="table-footer">
+            <div className="table-info">
+              Showing {vouchers.length} of {vouchersTotalPages * 7} Vouchers
+            </div>
+          </div>
+          {vouchersTotalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', padding: '1rem' }}>
+              <button
+                onClick={() => setVouchersPage((prev) => Math.max(1, prev - 1))}
+                disabled={vouchersPage === 1}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: vouchersPage === 1 ? '#ccc' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: vouchersPage === 1 ? 'not-allowed' : 'pointer',
+                }}
+              >
+                ← Trước
+              </button>
+              <span style={{ color: '#666' }}>
+                Trang {vouchersPage} / {vouchersTotalPages}
+              </span>
+              <button
+                onClick={() => setVouchersPage((prev) => Math.min(vouchersTotalPages, prev + 1))}
+                disabled={vouchersPage === vouchersTotalPages}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: vouchersPage === vouchersTotalPages ? '#ccc' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: vouchersPage === vouchersTotalPages ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Sau →
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === 'users' && (
@@ -638,7 +992,13 @@ function Admin() {
                 <div className="col-date">{formatDate(recharge.createdAt)}</div>
                 <div className="col-user">{recharge.userId?.username || 'N/A'}</div>
                 <div className="col-amount">{recharge.amount.toLocaleString('vi-VN')}đ</div>
-                <div className="col-method">{recharge.paymentMethod === 'bank' ? 'Chuyển Khoản' : 'MoMo'}</div>
+                <div className="col-method">
+                  {recharge.paymentMethod === 'bank'
+                    ? 'Chuyển Khoản'
+                    : recharge.paymentMethod === 'momo'
+                      ? 'MoMo'
+                      : 'Thẻ Siêu Rẻ'}
+                </div>
                 <div className="col-bill">
                   <button 
                     className="btn-view-bill"
@@ -673,6 +1033,23 @@ function Admin() {
                         Từ chối
                       </button>
                     </>
+                  )}
+                  {recharge.status === 'Hoàn thành' && (
+                    <button 
+                      className="btn-delete"
+                      onClick={() => handleDeleteRecharge(recharge._id)}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        background: '#f44336',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      Xóa
+                    </button>
                   )}
                 </div>
               </div>
@@ -846,6 +1223,24 @@ function Admin() {
                   >
                     Chi Tiết
                   </button>
+                  {order.status === 'Hoàn thành' && (
+                    <button 
+                      className="btn-delete"
+                      onClick={() => handleDeleteOrder(order._id)}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        background: '#f44336',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        marginLeft: '0.5rem'
+                      }}
+                    >
+                      Xóa
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -1195,7 +1590,13 @@ function Admin() {
                     <div key={recharge._id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr', padding: '0.8rem', borderBottom: '1px solid #eee' }}>
                       <div>{formatDate(recharge.createdAt)}</div>
                       <div>{recharge.amount?.toLocaleString('vi-VN') || '0'}đ</div>
-                      <div>{recharge.paymentMethod === 'bank' ? 'Chuyển Khoản' : 'MoMo'}</div>
+                      <div>
+                        {recharge.paymentMethod === 'bank'
+                          ? 'Chuyển Khoản'
+                          : recharge.paymentMethod === 'momo'
+                            ? 'MoMo'
+                            : 'Thẻ Siêu Rẻ'}
+                      </div>
                       <div>{recharge.status}</div>
                     </div>
                   ))}

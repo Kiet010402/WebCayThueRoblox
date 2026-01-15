@@ -8,6 +8,7 @@ const Settings = require('../models/Settings');
 const BalanceHistory = require('../models/BalanceHistory');
 const Announcement = require('../models/Announcement');
 const Pricing = require('../models/Pricing');
+const Voucher = require('../models/Voucher');
 const defaultCayThuePricing = require('../data/defaultCayThuePricing');
 const mongoose = require('mongoose');
 
@@ -277,6 +278,25 @@ router.put('/orders/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Delete completed order
+router.delete('/orders/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    
+    if (order.status !== 'Hoàn thành') {
+      return res.status(400).json({ message: 'Chỉ có thể xóa đơn hàng đã hoàn thành' });
+    }
+    
+    await Order.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Đã xóa đơn hàng thành công' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get statistics
 router.get('/stats', authenticateAdmin, async (req, res) => {
   try {
@@ -531,7 +551,13 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
       initialBalance,
       changeAmount: recharge.amount,
       currentBalance: newBalance,
-      reason: `Nạp tiền tự động qua ${recharge.paymentMethod === 'bank' ? 'Chuyển Khoản' : 'MoMo'} (#${recharge._id.toString().substring(0, 8)})`
+      reason: `Nạp tiền tự động qua ${
+        recharge.paymentMethod === 'bank'
+          ? 'Chuyển Khoản'
+          : recharge.paymentMethod === 'momo'
+            ? 'MoMo'
+            : 'Thẻ Siêu Rẻ'
+      } (#${recharge._id.toString().substring(0, 8)})`
     });
 
     // Update recharge status
@@ -587,6 +613,118 @@ router.put('/recharges/:id/reject', authenticateAdmin, async (req, res) => {
     await recharge.save();
 
     res.json({ message: 'Từ chối nạp tiền thành công', recharge });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete completed recharge
+router.delete('/recharges/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const recharge = await Recharge.findById(req.params.id);
+    if (!recharge) {
+      return res.status(404).json({ message: 'Recharge request not found' });
+    }
+    
+    if (recharge.status !== 'Hoàn thành') {
+      return res.status(400).json({ message: 'Chỉ có thể xóa yêu cầu nạp tiền đã hoàn thành' });
+    }
+    
+    await Recharge.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Đã xóa yêu cầu nạp tiền thành công' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ===== Voucher management =====
+
+// Get vouchers with pagination and optional status filter
+router.get('/vouchers', authenticateAdmin, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 7;
+    const skip = (page - 1) * limit;
+    const status = (req.query.status || '').trim(); // active | expired
+
+    // Auto expire outdated vouchers
+    const now = new Date();
+    await Voucher.updateMany(
+      { expiresAt: { $lt: now }, status: { $ne: 'expired' } },
+      { $set: { status: 'expired' } }
+    );
+
+    const query = {};
+    if (status) {
+      query.status = status;
+    }
+
+    const [vouchers, total] = await Promise.all([
+      Voucher.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Voucher.countDocuments(query),
+    ]);
+
+    res.json({
+      vouchers,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Create new voucher
+router.post('/vouchers', authenticateAdmin, async (req, res) => {
+  try {
+    const { code, discount, expiresAt, minOrderAmount } = req.body;
+
+    if (!code || !discount || !expiresAt) {
+      return res
+        .status(400)
+        .json({ message: 'Vui lòng nhập đầy đủ: mã, giảm giá, ngày hết hạn' });
+    }
+
+    const discountValue = Number(discount);
+    if (!Number.isFinite(discountValue) || discountValue <= 0 || discountValue > 100) {
+      return res
+        .status(400)
+        .json({ message: 'Giảm giá phải trong khoảng 1 - 100%' });
+    }
+
+    const upperCode = code.trim().toUpperCase();
+    const existing = await Voucher.findOne({ code: upperCode });
+    if (existing) {
+      return res.status(400).json({ message: 'Mã voucher đã tồn tại' });
+    }
+
+    const voucher = await Voucher.create({
+      code: upperCode,
+      discount: discountValue,
+      expiresAt: new Date(expiresAt),
+      minOrderAmount: Number(minOrderAmount) || 0,
+      status: 'active',
+    });
+
+    res.status(201).json(voucher);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete voucher
+router.delete('/vouchers/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const voucher = await Voucher.findByIdAndDelete(req.params.id);
+    if (!voucher) {
+      return res.status(404).json({ message: 'Voucher không tồn tại' });
+    }
+    res.json({ message: 'Xóa voucher thành công' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

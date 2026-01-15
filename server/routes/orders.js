@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const BalanceHistory = require('../models/BalanceHistory');
+const Voucher = require('../models/Voucher');
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -73,19 +74,77 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     const originalAmount = req.body.totalAmount || 0;
-    
-    // Apply discount if user has voucher
-    const discount = user.discount || 0;
-    let discountAmount = 0;
+    const orderType = req.body.orderType || 'product';
+    const voucherCode = (req.body.voucherCode || '').trim().toUpperCase();
+
+    // User account discount
+    const accountDiscountPercent = user.discount || 0;
+    let accountDiscountAmount = 0;
+
+    // Voucher discount
+    let voucher = null;
+    let voucherDiscountPercent = 0;
+    let voucherDiscountAmount = 0;
+
     let finalAmount = originalAmount;
-    
-    if (discount > 0 && discount <= 100 && req.body.orderType === 'service') {
-      discountAmount = Math.round((originalAmount * discount) / 100);
-      finalAmount = originalAmount - discountAmount;
+
+    if (orderType === 'service') {
+      // Apply account discount first
+      if (accountDiscountPercent > 0 && accountDiscountPercent <= 100) {
+        accountDiscountAmount = Math.round(
+          (originalAmount * accountDiscountPercent) / 100
+        );
+        finalAmount -= accountDiscountAmount;
+      }
+
+      // Apply voucher discount if provided
+      if (voucherCode) {
+        const now = new Date();
+        voucher = await Voucher.findOne({ code: voucherCode });
+
+        if (!voucher) {
+          return res.status(400).json({ message: 'Voucher không tồn tại' });
+        }
+
+        // Expired check
+        if (voucher.expiresAt && voucher.expiresAt < now) {
+          if (voucher.status !== 'expired') {
+            voucher.status = 'expired';
+            await voucher.save();
+          }
+          return res.status(400).json({ message: 'Voucher đã hết hạn' });
+        }
+
+        if (voucher.status === 'expired') {
+          return res.status(400).json({ message: 'Voucher đã hết hạn' });
+        }
+
+        // Check if user has already used this voucher
+        const usedByUsers = voucher.usedByUsers || [];
+        if (usedByUsers.some(userId => userId.toString() === req.userId.toString())) {
+          return res.status(400).json({ message: 'Bạn đã sử dụng voucher này rồi' });
+        }
+
+        if (voucher.minOrderAmount && originalAmount < voucher.minOrderAmount) {
+          return res.status(400).json({
+            message: `Voucher chỉ áp dụng cho đơn từ ${voucher.minOrderAmount.toLocaleString(
+              'vi-VN'
+            )}đ`,
+          });
+        }
+
+        voucherDiscountPercent = voucher.discount || 0;
+        if (voucherDiscountPercent > 0) {
+          voucherDiscountAmount = Math.round(
+            (finalAmount * voucherDiscountPercent) / 100
+          );
+          finalAmount -= voucherDiscountAmount;
+        }
+      }
     }
     
     // Kiểm tra và trừ tiền nếu là dịch vụ
-    if (req.body.orderType === 'service') {
+    if (orderType === 'service') {
       if ((user.balance || 0) < finalAmount) {
         return res.status(400).json({ message: 'Số dư không đủ để thanh toán' });
       }
@@ -96,8 +155,28 @@ router.post('/', authenticateToken, async (req, res) => {
       await user.save();
 
       // Create balance history
-      const orderDescription = req.body.serviceName 
-        ? `Thanh toán đơn hàng mua ${req.body.serviceName}${req.body.gameName ? ` - ${req.body.gameName}` : ''}${discountAmount > 0 ? ` (Giảm ${discount}%: -${discountAmount.toLocaleString('vi-VN')}đ)` : ''}`
+      let discountDetails = '';
+      if (accountDiscountAmount > 0) {
+        discountDetails += `Giảm tài khoản ${accountDiscountPercent}%: -${accountDiscountAmount.toLocaleString(
+          'vi-VN'
+        )}đ`;
+      }
+      if (voucher && voucherDiscountAmount > 0) {
+        discountDetails += `${discountDetails ? '; ' : ''}Voucher ${
+          voucher.code
+        } ${voucherDiscountPercent}%: -${voucherDiscountAmount.toLocaleString(
+          'vi-VN'
+        )}đ`;
+      }
+
+      const orderDescription = req.body.serviceName
+        ? `Thanh toán đơn hàng mua ${req.body.serviceName}${
+            req.body.gameName ? ` - ${req.body.gameName}` : ''
+          }${
+            discountDetails
+              ? ` (${discountDetails})`
+              : ''
+          }`
         : 'Thanh toán đơn hàng';
       
       await BalanceHistory.create({
@@ -112,16 +191,29 @@ router.post('/', authenticateToken, async (req, res) => {
     const orderData = {
       ...req.body,
       userId: req.userId,
-      orderType: req.body.orderType || 'product',
+      orderType,
       totalAmount: finalAmount, // Override with final amount after discount
-      originalAmount: originalAmount,
-      discount: discountAmount > 0 ? discount : 0,
-      discountAmount: discountAmount,
-      status: req.body.status || 'Đang xử lí'
+      originalAmount,
+      discount: accountDiscountAmount > 0 ? accountDiscountPercent : 0,
+      discountAmount: accountDiscountAmount + voucherDiscountAmount,
+      voucherCode: voucher ? voucher.code : voucherCode || null,
+      voucherDiscount: voucherDiscountPercent,
+      voucherDiscountAmount,
+      status: req.body.status || 'Đang xử lí',
     };
 
     const order = new Order(orderData);
     const newOrder = await order.save();
+
+    // Mark voucher as used by this user after order is created successfully
+    if (voucher) {
+      const usedByUsers = voucher.usedByUsers || [];
+      if (!usedByUsers.some(userId => userId.toString() === user._id.toString())) {
+        voucher.usedByUsers = [...usedByUsers, user._id];
+        await voucher.save();
+      }
+    }
+
     res.status(201).json(newOrder);
   } catch (error) {
     res.status(400).json({ message: error.message });

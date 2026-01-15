@@ -14,6 +14,7 @@ function Recharge() {
   const paymentMethods = [
     { id: 'bank', name: '💳 Chuyển Khoản Ngân Hàng', icon: '🏦' },
     { id: 'momo', name: '📱 Ví MoMo', icon: '📱' },
+    { id: 'tsr', name: '🔗 Thẻ Siêu Rẻ', icon: '🔗' },
   ];
 
   const paymentInfo = {
@@ -27,6 +28,10 @@ function Recharge() {
       title: 'Thông Tin Ví MoMo',
       account: '0936596825',
       owner: 'DUONG THI NHU Y'
+    },
+    tsr: {
+      title: 'Thanh Toán Qua Thẻ Siêu Rẻ',
+      description: 'Thanh toán qua cổng Thẻ Siêu Rẻ. Vui lòng làm theo hướng dẫn tại ô Thông Tin TSR bên dưới.'
     }
   };
 
@@ -179,16 +184,22 @@ function Recharge() {
 
             <div className="payment-info-box">
               <h3>{currentPaymentInfo.title}</h3>
-              {paymentMethod === 'bank' ? (
+              {paymentMethod === 'bank' && (
                 <>
                   <p><strong>STK:</strong> {currentPaymentInfo.account}</p>
                   <p><strong>Ngân hàng:</strong> {currentPaymentInfo.bank}</p>
                   <p><strong>Chủ tài khoản:</strong> {currentPaymentInfo.owner}</p>
                 </>
-              ) : (
+              )}
+              {paymentMethod === 'momo' && (
                 <>
                   <p><strong>Số điện thoại:</strong> {currentPaymentInfo.account}</p>
                   <p><strong>Chủ tài khoản:</strong> {currentPaymentInfo.owner}</p>
+                </>
+              )}
+              {paymentMethod === 'tsr' && (
+                <>
+                  <p>{currentPaymentInfo.description}</p>
                 </>
               )}
             </div>
@@ -221,7 +232,6 @@ function Recharge() {
             <div className="info-box">
               <h4>ℹ️ Lưu Ý Quan Trọng</h4>
               <ul>
-                <li>✓ Vui lòng chuyển đúng số tiền và ghi chú tên đăng nhập</li>
                 <li>✓ Upload bill sau khi chuyển khoản</li>
                 <li>✓ Admin sẽ duyệt trong vòng 5-30 phút</li>
                 <li>✓ Tiền sẽ được cộng vào tài khoản sau khi admin duyệt</li>
