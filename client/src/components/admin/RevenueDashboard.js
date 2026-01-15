@@ -10,16 +10,17 @@ function formatMoney(v) {
 export default function RevenueDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
+  const [resetting, setResetting] = useState(false);
+
+  const fetchStats = async () => {
+    const token = localStorage.getItem('token');
+    const res = await api.get('/api/admin/revenue-stats', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setStats(res.data);
+  };
 
   useEffect(() => {
-    const fetchStats = async () => {
-      const token = localStorage.getItem('token');
-      const res = await api.get('/api/admin/revenue-stats', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setStats(res.data);
-    };
-
     setLoading(true);
     fetchStats()
       .catch((err) => {
@@ -28,6 +29,24 @@ export default function RevenueDashboard() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const handleResetRevenue = async () => {
+    if (!window.confirm('Bạn chắc chắn muốn reset doanh thu về 0?')) return;
+    try {
+      setResetting(true);
+      const token = localStorage.getItem('token');
+      await api.post('/api/admin/revenue-stats/reset', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchStats();
+      alert('Đã reset doanh thu thành công');
+    } catch (err) {
+      console.error('Error resetting revenue stats:', err);
+      alert(err.response?.data?.message || 'Không thể reset doanh thu');
+    } finally {
+      setResetting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -41,6 +60,23 @@ export default function RevenueDashboard() {
 
   return (
     <div className="revenue-dashboard">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+        <button
+          onClick={handleResetRevenue}
+          disabled={resetting}
+          style={{
+            padding: '0.5rem 1rem',
+            background: resetting ? '#ccc' : '#f44336',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: resetting ? 'not-allowed' : 'pointer',
+            fontWeight: 600
+          }}
+        >
+          {resetting ? 'Đang reset...' : 'Reset Doanh Thu'}
+        </button>
+      </div>
       <div className="revenue-grid">
         <div className="revenue-card">
           <div className="revenue-number">{stats.totalOrders || 0}</div>

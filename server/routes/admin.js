@@ -40,7 +40,7 @@ router.get('/users', authenticateAdmin, async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
     const skip = (page - 1) * limit;
-    const search = req.query.search || '';
+    const search = (req.query.search || '').trim();
 
     const query = {};
     if (search) {
@@ -318,12 +318,16 @@ router.get('/revenue-stats', authenticateAdmin, async (req, res) => {
 
     const dateExpr = { $ifNull: ['$processedAt', '$createdAt'] };
 
+    // Load settings to see if there is a reset point
+    const settings = await Settings.getSettings();
+    const resetAt = settings.revenueResetAt || null;
+
     const sumRecharge = async (start, end) => {
       const match = {
         status: 'Hoàn thành',
         $expr: {
           $and: [
-            { $gte: [dateExpr, start] },
+            { $gte: [dateExpr, resetAt || start] },
             { $lt: [dateExpr, end] }
           ]
         }
@@ -335,14 +339,21 @@ router.get('/revenue-stats', authenticateAdmin, async (req, res) => {
       return rows?.[0]?.total || 0;
     };
 
+    const matchBase = {
+      status: 'Hoàn thành',
+      $expr: resetAt
+        ? { $gte: [dateExpr, resetAt] }
+        : { $gte: [dateExpr, new Date(0)] }
+    };
+
     const [totalOrders, ordersToday, ordersYesterday] = await Promise.all([
-      Order.countDocuments(),
+      Order.countDocuments(resetAt ? { createdAt: { $gte: resetAt } } : {}),
       Order.countDocuments({ createdAt: { $gte: todayStart, $lt: tomorrowStart } }),
       Order.countDocuments({ createdAt: { $gte: yesterdayStart, $lt: todayStart } })
     ]);
 
     const [totalRevenueAgg] = await Recharge.aggregate([
-      { $match: { status: 'Hoàn thành' } },
+      { $match: matchBase },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
     const totalRevenue = totalRevenueAgg?.total || 0;
@@ -374,6 +385,19 @@ router.get('/revenue-stats', authenticateAdmin, async (req, res) => {
       profitLastMonth: revenueLastMonth,
       profitLastMonthDate: lastMonthLabel
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Reset revenue statistics (set new baseline)
+router.post('/revenue-stats/reset', authenticateAdmin, async (req, res) => {
+  try {
+    const settings = await Settings.getSettings();
+    settings.revenueResetAt = new Date();
+    settings.updatedAt = new Date();
+    await settings.save();
+    res.json({ message: 'Đã reset mốc tính doanh thu', revenueResetAt: settings.revenueResetAt });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

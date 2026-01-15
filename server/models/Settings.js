@@ -9,6 +9,10 @@ const settingsSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  revenueResetAt: {
+    type: Date,
+    default: null
+  },
   updatedAt: {
     type: Date,
     default: Date.now
