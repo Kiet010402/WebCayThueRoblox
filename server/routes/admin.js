@@ -9,6 +9,7 @@ const BalanceHistory = require('../models/BalanceHistory');
 const Announcement = require('../models/Announcement');
 const Pricing = require('../models/Pricing');
 const defaultCayThuePricing = require('../data/defaultCayThuePricing');
+const mongoose = require('mongoose');
 
 // Middleware to verify admin
 const authenticateAdmin = async (req, res, next) => {
@@ -211,10 +212,20 @@ router.get('/orders', authenticateAdmin, async (req, res) => {
     // For search, we need to find users first if searching by username
     let userIds = [];
     if (search) {
-      const searchLower = search.toLowerCase();
-      // Try to match order ID
-      if (search.match(/^[a-f0-9]{8,}$/i)) {
-        query._id = { $regex: search, $options: 'i' };
+      // Try to match order ID (allow searching by full ObjectId or by the first 8 chars shown in UI)
+      const trimmed = String(search).trim();
+      const isHex = /^[a-f0-9]+$/i.test(trimmed);
+      if (isHex && trimmed.length === 24 && mongoose.Types.ObjectId.isValid(trimmed)) {
+        query._id = new mongoose.Types.ObjectId(trimmed);
+      } else if (isHex && trimmed.length >= 6) {
+        // substring match on ObjectId string using $expr
+        query.$expr = {
+          $regexMatch: {
+            input: { $toString: '$_id' },
+            regex: trimmed,
+            options: 'i'
+          }
+        };
       } else {
         // Search by username
         const users = await User.find({

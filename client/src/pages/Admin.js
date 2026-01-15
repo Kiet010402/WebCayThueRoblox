@@ -50,6 +50,7 @@ function Admin() {
   const [rechargesPage, setRechargesPage] = useState(1);
   const [rechargesTotalPages, setRechargesTotalPages] = useState(1);
   const [rechargesStatusFilter, setRechargesStatusFilter] = useState('');
+  const [searchNonce, setSearchNonce] = useState(0);
 
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -116,6 +117,11 @@ function Admin() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Force refetch when user presses "Tìm kiếm" while already on page 1
+  useEffect(() => {
+    if (searchNonce > 0) fetchData();
+  }, [searchNonce, fetchData]);
 
   const handleAddBalance = async () => {
     const value = Number(addBalanceAmount);
@@ -436,16 +442,29 @@ function Admin() {
                   setUsersSearch(e.target.value);
                   setUsersPage(1);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setUsersPage(1);
+                    setSearchNonce((n) => n + 1);
+                  }
+                }}
               />
             </div>
             <div className="control-right">
-              <button className="btn-search" onClick={() => setUsersPage(1)}>
+              <button
+                className="btn-search"
+                onClick={() => {
+                  setUsersPage(1);
+                  setSearchNonce((n) => n + 1);
+                }}
+              >
                 <span className="search-icon">🔍</span>
                 Tìm kiếm
               </button>
               <button className="btn-clear-filter" onClick={() => {
                 setUsersSearch('');
                 setUsersPage(1);
+                setSearchNonce((n) => n + 1);
               }}>
                 <span className="trash-icon">🗑️</span>
                 Bỏ lọc
@@ -724,6 +743,12 @@ function Admin() {
                   setOrdersSearch(e.target.value);
                   setOrdersPage(1);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setOrdersPage(1);
+                    setSearchNonce((n) => n + 1);
+                  }
+                }}
               />
               <select
                 className="status-filter-select"
@@ -741,7 +766,13 @@ function Admin() {
               </select>
             </div>
             <div className="control-right">
-              <button className="btn-search" onClick={() => setOrdersPage(1)}>
+              <button
+                className="btn-search"
+                onClick={() => {
+                  setOrdersPage(1);
+                  setSearchNonce((n) => n + 1);
+                }}
+              >
                 <span className="search-icon">🔍</span>
                 Tìm kiếm
               </button>
@@ -749,6 +780,7 @@ function Admin() {
                 setOrdersSearch('');
                 setOrdersStatusFilter('');
                 setOrdersPage(1);
+                setSearchNonce((n) => n + 1);
               }}>
                 <span className="trash-icon">🗑️</span>
                 Bỏ lọc
