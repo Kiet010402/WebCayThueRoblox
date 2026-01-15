@@ -10,6 +10,8 @@ function TopRanking() {
 
   useEffect(() => {
     fetchTopRecharges();
+    const interval = setInterval(fetchTopRecharges, 30000); // refresh every 30s
+    return () => clearInterval(interval);
   }, []);
 
   const fetchTopRecharges = async () => {

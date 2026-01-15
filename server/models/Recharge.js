@@ -30,8 +30,15 @@ const rechargeSchema = new mongoose.Schema({
   },
   processedAt: {
     type: Date
+  },
+  rejectionReason: {
+    type: String,
+    default: ''
   }
 });
+
+// Index to optimize sorting by createdAt (admin views, reports)
+rechargeSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Recharge', rechargeSchema);
 

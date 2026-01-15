@@ -1,37 +1,71 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Banner from '../components/Banner';
 import TopRanking from '../components/TopRanking';
+import api from '../api/axios';
 import './Home.css';
 
 function Home() {
-  const notices = [
-    {
-      id: 1,
-      title: '⚠️ LƯU Ý KHI ĐẶT ĐƠN TRÊN SHOP',
-      items: [
-        '- Đặt Đơn: Tuyệt đối không được vào acc. Khi nào trang thái "Hoàn thành" là xong',
-      ]
+  const [announcement, setAnnouncement] = useState({ title: '', content: '' });
+  const [loadingAnnouncement, setLoadingAnnouncement] = useState(true);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+
+  useEffect(() => {
+    const fetchAnnouncement = async () => {
+      const res = await api.get('/api/announcement');
+      setAnnouncement({
+        title: res.data?.title || 'Thông Báo | Trang Chủ',
+        content: res.data?.content || ''
+      });
+    };
+
+    // Kiểm tra xem user có tắt popup trong 2 giờ trước đó không
+    const hiddenUntil = parseInt(localStorage.getItem('announcementHideUntil') || '0', 10);
+    if (Date.now() < hiddenUntil) {
+      setShowAnnouncementModal(false);
+    } else {
+      setShowAnnouncementModal(true);
     }
-  ];
+
+    setLoadingAnnouncement(true);
+    fetchAnnouncement()
+      .catch((err) => {
+        console.error('Error fetching announcement:', err);
+        setAnnouncement({ title: 'Thông Báo | Trang Chủ', content: '' });
+      })
+      .finally(() => setLoadingAnnouncement(false));
+  }, []);
+
+  const handleCloseModal = () => {
+    setShowAnnouncementModal(false);
+  };
+
+  const handleHideFor2Hours = () => {
+    const twoHours = 2 * 60 * 60 * 1000;
+    const until = Date.now() + twoHours;
+    localStorage.setItem('announcementHideUntil', String(until));
+    setShowAnnouncementModal(false);
+  };
 
   return (
     <div className="home">
+      <div className="notices-section announcement-top">
+        <h2 className="section-title">{announcement.title || '⚠️ THÔNG BÁO'}</h2>
+        <div className="notice-card">
+          {loadingAnnouncement ? (
+            <div style={{ color: '#666' }}>Đang tải thông báo...</div>
+          ) : announcement.content ? (
+            <div
+              className="announcement-html"
+              dangerouslySetInnerHTML={{ __html: announcement.content }}
+            />
+          ) : (
+            <div style={{ color: '#666' }}>Chưa có thông báo</div>
+          )}
+        </div>
+      </div>
+
       <Banner />
       <TopRanking />
-
-      <div className="notices-section">
-        <h2 className="section-title">⚠️ LƯU Ý QUAN TRỌNG</h2>
-        {notices.map(notice => (
-          <div key={notice.id} className="notice-card">
-            <h3>{notice.title}</h3>
-            <ul className="notice-items">
-              {notice.items.map((item, idx) => (
-                <li key={idx}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
 
       <div className="info-section">
         <div className="info-grid">
@@ -55,6 +89,34 @@ function Home() {
           </div>
         </div>
       </div>
+
+      {showAnnouncementModal && (
+        <div className="announcement-modal-overlay" onClick={handleCloseModal}>
+          <div className="announcement-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="announcement-modal-header">
+              <span>🔔 Thông báo</span>
+              <button className="announcement-modal-close" onClick={handleCloseModal}>
+                ×
+              </button>
+            </div>
+            <div className="announcement-modal-body">
+              {loadingAnnouncement ? (
+                <div style={{ color: '#666' }}>Đang tải thông báo...</div>
+              ) : (
+                <div
+                  className="announcement-html"
+                  dangerouslySetInnerHTML={{ __html: announcement.content || '' }}
+                />
+              )}
+            </div>
+            <div className="announcement-modal-footer">
+              <button className="announcement-hide-btn" onClick={handleHideFor2Hours}>
+                Không hiển thị lại trong 2 giờ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

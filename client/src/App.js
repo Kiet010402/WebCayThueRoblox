@@ -13,6 +13,7 @@ import CayThue from './pages/CayThue';
 import Wallet from './pages/Wallet';
 import News from './pages/News';
 import Admin from './pages/Admin';
+import Profile from './pages/Profile';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -59,6 +60,7 @@ function App() {
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/news" element={<News />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/profile" element={<Profile />} />
         </Routes>
       </div>
     </HashRouter>

@@ -1,7 +1,67 @@
 .history-container {
   padding: 2rem 0;
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
+}
+
+.history-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(33, 150, 243, 0.3);
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+}
+
+.stat-card-blue {
+  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+  box-shadow: 0 8px 24px rgba(33, 150, 243, 0.3);
+}
+
+.stat-card-green {
+  background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+  box-shadow: 0 8px 24px rgba(76, 175, 80, 0.3);
+}
+
+.stat-card-purple {
+  background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);
+  box-shadow: 0 8px 24px rgba(156, 39, 176, 0.3);
+}
+
+.stat-card h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.stat-value-blue {
+  color: white;
+}
+
+.stat-value-green {
+  color: white;
+}
+
+.stat-value-purple {
+  color: white;
 }
 
 .history-container h1 {
@@ -38,7 +98,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 1fr 1.5fr 1fr 1.5fr 1fr;
+  grid-template-columns: 1.2fr 1fr 2fr 1.2fr 1.5fr 1fr;
   background: linear-gradient(135deg, #333 0%, #2d2d2d 100%);
   color: white;
   font-weight: bold;
@@ -49,16 +109,18 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 1fr 1.5fr 1fr 1.5fr 1fr;
+  grid-template-columns: 1.2fr 1fr 2fr 1.2fr 1.5fr 1fr;
   padding: 1rem;
   gap: 1rem;
   align-items: center;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
+  background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%);
+  color: white;
 }
 
 .table-row:hover {
-  background-color: #f9f9f9;
+  background: linear-gradient(135deg, #3d3d3d 0%, #2e2e2e 100%);
 }
 
 .table-row:last-child {
@@ -66,18 +128,30 @@
 }
 
 .col-date {
-  color: #666;
-  font-weight: 500;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.col-code {
+  color: #64B5F6 !important;
+  font-weight: bold;
+  font-size: 0.95rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .col-account {
-  color: #333;
-  font-weight: bold;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .col-amount {
-  color: #2196F3;
+  color: #64B5F6 !important;
   font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .col-status {
@@ -91,21 +165,25 @@
   font-size: 0.9rem;
   font-weight: bold;
   white-space: nowrap;
+  display: inline-block;
 }
 
 .table-row.status-Hoàn thành .status-badge {
-  background-color: #c8e6c9;
-  color: #2e7d32;
+  background-color: #4CAF50;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
 }
 
 .table-row.status-Đangcày .status-badge {
-  background-color: #b2dfdb;
-  color: #00695c;
+  background-color: #26A69A;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(38, 166, 154, 0.3);
 }
 
 .table-row.status-Đangxửlí .status-badge {
-  background-color: #fff9c4;
-  color: #f57f17;
+  background-color: #FF9800;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
 }
 
 .col-action {
@@ -116,16 +194,241 @@
 .btn-detail {
   padding: 0.5rem 1rem;
   background-color: #2196F3;
-  color: white;
+  color: #ffffff !important;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background-color 0.3s;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
 }
 
 .btn-detail:hover {
   background-color: #1976D2;
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Modern Table Styles */
+.modern-table-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-top: 2rem;
+}
+
+.table-header-bar {
+  background: linear-gradient(135deg, #26A69A 0%, #00897B 100%);
+  padding: 1rem 1.5rem;
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-icon {
+  font-size: 1.2rem;
+}
+
+.table-controls {
+  background: #f5f5f5;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.control-left {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex: 1;
+}
+
+.search-input {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  min-width: 200px;
+  flex: 1;
+}
+
+.status-filter-select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  min-width: 180px;
+}
+
+.status-filter-select:hover {
+  border-color: #bbb;
+}
+
+.control-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-search,
+.btn-clear-filter {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.btn-search:hover,
+.btn-clear-filter:hover {
+  background: #e0e0e0;
+  border-color: #bbb;
+}
+
+.search-icon,
+.trash-icon {
+  font-size: 1rem;
+}
+
+.modern-table {
+  border: 1px solid #e0e0e0;
+}
+
+.modern-table-header {
+  display: grid;
+  grid-template-columns: 50px 1.2fr 1fr 2.5fr 1.2fr 1.5fr;
+  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+  color: white;
+  font-weight: bold;
+  padding: 1rem;
+  gap: 1rem;
+  align-items: center;
+}
+
+.modern-table-header .col-date-modern,
+.modern-table-header .col-order-code,
+.modern-table-header .col-order-name,
+.modern-table-header .col-price-modern,
+.modern-table-header .col-status-modern {
+  color: white !important;
+}
+
+.modern-table-row {
+  display: grid;
+  grid-template-columns: 50px 1.2fr 1fr 2.5fr 1.2fr 1.5fr;
+  padding: 1rem;
+  gap: 1rem;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  transition: background-color 0.2s ease;
+}
+
+.modern-table-row:hover {
+  background: #f5f5f5;
+}
+
+.modern-table-row:last-child {
+  border-bottom: none;
+}
+
+.col-checkbox {
+  display: flex;
+  justify-content: center;
+}
+
+.col-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.col-date-modern {
+  color: #333;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.col-order-code {
+  color: #333;
+  font-weight: bold;
+  font-size: 0.9rem;
+  font-family: 'Courier New', monospace;
+}
+
+.col-order-name {
+  color: #333;
+  font-weight: 600;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.col-price-modern {
+  color: #000;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.col-status-modern {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.status-badge-modern {
+  padding: 0.4rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.status-badge-modern.status-Hoànthành {
+  background-color: #c8e6c9;
+  color: #000;
+}
+
+.status-badge-modern.status-Đangcày {
+  background-color: #b2dfdb;
+  color: #000;
+}
+
+.status-badge-modern.status-Đangxửlí {
+  background-color: #fff9c4;
+  color: #000;
+}
+
+.table-footer {
+  background: white;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  border-top: 1px solid #e0e0e0;
+}
+
+.table-info {
+  color: #666;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 768px) {
@@ -174,5 +477,21 @@
     content: 'Trạng thái: ';
     font-weight: bold;
     color: #666;
+  }
+
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .control-left,
+  .control-right {
+    width: 100%;
+  }
+
+  .modern-table-header,
+  .modern-table-row {
+    grid-template-columns: 40px 1fr 1fr 1.5fr 1fr 1.2fr;
+    font-size: 0.85rem;
   }
 }

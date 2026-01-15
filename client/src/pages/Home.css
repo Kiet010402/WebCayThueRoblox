@@ -14,7 +14,7 @@
 }
 
 .notices-section {
-  margin: 3rem 0;
+  margin: 1.5rem 0 3rem;
 }
 
 .section-title {
@@ -26,12 +26,11 @@
 }
 
 .notice-card {
-  background: linear-gradient(135deg, #e3f2fd 0%, #f0f9ff 100%);
-  border-left: 5px solid #2196F3;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #263238 0%, #37474f 100%);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.1);
+  padding: 1.5rem 2rem;
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
 }
 
 .notice-card h3 {
@@ -55,6 +54,95 @@
 
 .notice-items li:last-child {
   border-bottom: none;
+}
+
+.announcement-html {
+  color: #fff;
+  line-height: 1.7;
+}
+
+.announcement-html a {
+  color: #ffeb3b;
+  font-weight: 700;
+}
+
+.announcement-html p {
+  margin: 0.5rem 0;
+}
+
+.announcement-html ul,
+.announcement-html ol {
+  margin: 0.6rem 0 0.6rem 1.2rem;
+}
+
+.announcement-top {
+  margin-top: 1rem;
+}
+
+.announcement-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.announcement-modal {
+  width: min(520px, 90%);
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.announcement-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.9rem 1.2rem;
+  background: #263238;
+  color: #fff;
+  font-weight: 700;
+}
+
+.announcement-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.announcement-modal-body {
+  padding: 1.2rem 1.5rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.announcement-modal-body .announcement-html {
+  color: #333;
+}
+
+.announcement-modal-footer {
+  padding: 0.8rem 1.2rem 1.1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.announcement-hide-btn {
+  background: #e57373;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.announcement-hide-btn:hover {
+  background: #ef5350;
 }
 
 .info-section {

@@ -26,6 +26,9 @@ const orderSchema = new mongoose.Schema({
   backupCode: String,
   notes: String,
   totalAmount: Number,
+  originalAmount: Number,
+  discount: Number,
+  discountAmount: Number,
   status: {
     type: String,
     enum: ['pending', 'Đang xử lí', 'Đang cày', 'Hoàn thành', 'cancelled'],
@@ -38,5 +41,9 @@ const orderSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+// Indexes to optimize common admin queries
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ userId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);

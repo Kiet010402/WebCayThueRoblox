@@ -17,15 +17,26 @@ const userSchema = new mongoose.Schema({
     required: true
   },
   robloxUsername: String,
+  fullName: String,
+  phone: String,
+  telegramChatId: String,
   balance: {
     type: Number,
     default: 0
+  },
+  discount: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
   },
   role: {
     type: String,
     enum: ['user', 'admin'],
     default: 'user'
   },
+  lastLogin: Date,
+  device: String,
   createdAt: {
     type: Date,
     default: Date.now

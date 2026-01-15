@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const BalanceHistory = require('../models/BalanceHistory');
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -36,11 +37,28 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
   }
 });
 
-// Get current user orders (using token)
+// Get current user orders (using token) with pagination
 router.get('/my-orders', authenticateToken, async (req, res) => {
   try {
-    const orders = await Order.find({ userId: req.userId }).sort({ createdAt: -1 });
-    res.json(orders);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+    const skip = (page - 1) * limit;
+
+    const [orders, total] = await Promise.all([
+      Order.find({ userId: req.userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Order.countDocuments({ userId: req.userId })
+    ]);
+
+    res.json({
+      orders,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -54,24 +72,52 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const totalAmount = req.body.totalAmount || 0;
+    const originalAmount = req.body.totalAmount || 0;
+    
+    // Apply discount if user has voucher
+    const discount = user.discount || 0;
+    let discountAmount = 0;
+    let finalAmount = originalAmount;
+    
+    if (discount > 0 && discount <= 100 && req.body.orderType === 'service') {
+      discountAmount = Math.round((originalAmount * discount) / 100);
+      finalAmount = originalAmount - discountAmount;
+    }
     
     // Kiểm tra và trừ tiền nếu là dịch vụ
     if (req.body.orderType === 'service') {
-      if ((user.balance || 0) < totalAmount) {
+      if ((user.balance || 0) < finalAmount) {
         return res.status(400).json({ message: 'Số dư không đủ để thanh toán' });
       }
       
-      user.balance = (user.balance || 0) - totalAmount;
+      const initialBalance = user.balance || 0;
+      const newBalance = initialBalance - finalAmount;
+      user.balance = newBalance;
       await user.save();
+
+      // Create balance history
+      const orderDescription = req.body.serviceName 
+        ? `Thanh toán đơn hàng mua ${req.body.serviceName}${req.body.gameName ? ` - ${req.body.gameName}` : ''}${discountAmount > 0 ? ` (Giảm ${discount}%: -${discountAmount.toLocaleString('vi-VN')}đ)` : ''}`
+        : 'Thanh toán đơn hàng';
+      
+      await BalanceHistory.create({
+        userId: user._id,
+        initialBalance,
+        changeAmount: -finalAmount,
+        currentBalance: newBalance,
+        reason: orderDescription
+      });
     }
 
     const orderData = {
+      ...req.body,
       userId: req.userId,
       orderType: req.body.orderType || 'product',
-      totalAmount: totalAmount,
-      status: req.body.status || 'Đang xử lí',
-      ...req.body
+      totalAmount: finalAmount, // Override with final amount after discount
+      originalAmount: originalAmount,
+      discount: discountAmount > 0 ? discount : 0,
+      discountAmount: discountAmount,
+      status: req.body.status || 'Đang xử lí'
     };
 
     const order = new Order(orderData);

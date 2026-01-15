@@ -43,6 +43,8 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/recharge', require('./routes/recharge'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/news', require('./routes/news'));
+app.use('/api/announcement', require('./routes/announcement'));
+app.use('/api/pricing', require('./routes/pricing'));
 
 // Basic route
 app.get('/', (req, res) => {

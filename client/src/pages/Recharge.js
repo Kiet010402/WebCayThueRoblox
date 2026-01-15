@@ -61,6 +61,10 @@ function Recharge() {
       alert('Số tiền tối thiểu là 5.000đ');
       return;
     }
+    if (amount > 10000000) {
+      alert('Số tiền tối đa là 10.000.000đ');
+      return;
+    }
 
     if (!billImage) {
       alert('Vui lòng upload hình bill');
@@ -107,15 +111,23 @@ function Recharge() {
             <input
               type="number"
               className="amount-input"
-              placeholder="Nhập số tiền (tối thiểu 5.000đ)"
+              placeholder="Nhập số tiền (5.000đ - 10.000.000đ)"
               value={customAmount}
               onChange={(e) => setCustomAmount(e.target.value)}
               min="5000"
+              max="10000000"
             />
             <span className="currency-label">VND</span>
           </div>
-          {customAmount && parseInt(customAmount) < 5000 && (
+          {customAmount && (
+            <>
+              {parseInt(customAmount) < 5000 && (
             <p className="error-text">Số tiền tối thiểu là 5.000đ</p>
+              )}
+              {parseInt(customAmount) > 10000000 && (
+                <p className="error-text">Số tiền tối đa là 10.000.000đ</p>
+              )}
+            </>
           )}
 
           <h2 style={{ marginTop: '2rem' }}>Phương Thức Thanh Toán</h2>

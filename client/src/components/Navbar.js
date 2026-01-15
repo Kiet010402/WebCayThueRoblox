@@ -22,7 +22,7 @@ function Navbar({ user, onLogout }) {
           {user ? (
             <>
               <span className="user-balance"> {user.balance?.toLocaleString('vi-VN') || '0'}đ</span>
-              <span className="user-name">👤 {user.username}</span>
+              <Link to="/profile" className="user-name">👤 {user.username}</Link>
               {user.role === 'admin' && (
                 <Link to="/admin" className="btn-admin">Admin</Link>
               )}

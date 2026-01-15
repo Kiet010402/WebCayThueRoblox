@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import RevenueDashboard from '../components/admin/RevenueDashboard';
+import AnnouncementEditor from '../components/admin/AnnouncementEditor';
+import PricingManager from '../components/admin/PricingManager';
 import './Admin.css';
 
 function Admin() {
@@ -14,6 +17,7 @@ function Admin() {
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [addBalanceAmount, setAddBalanceAmount] = useState('');
+  const [balanceMode, setBalanceMode] = useState('add'); // add | subtract
   const [showAddBalanceModal, setShowAddBalanceModal] = useState(false);
   const [showBillModal, setShowBillModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
@@ -27,11 +31,30 @@ function Admin() {
   const [userDetails, setUserDetails] = useState(null);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingRechargesCount, setPendingRechargesCount] = useState(0);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [selectedRechargeId, setSelectedRechargeId] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [billCache, setBillCache] = useState({}); // Cache bill images by rechargeId
+  const [loadingBill, setLoadingBill] = useState(false);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
+  const [voucherDiscount, setVoucherDiscount] = useState('');
+  const [selectedUserForVoucher, setSelectedUserForVoucher] = useState(null);
+  // Pagination and search states
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersTotalPages, setUsersTotalPages] = useState(1);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersTotalPages, setOrdersTotalPages] = useState(1);
+  const [ordersSearch, setOrdersSearch] = useState('');
+  const [ordersStatusFilter, setOrdersStatusFilter] = useState('');
+  const [rechargesPage, setRechargesPage] = useState(1);
+  const [rechargesTotalPages, setRechargesTotalPages] = useState(1);
+  const [rechargesStatusFilter, setRechargesStatusFilter] = useState('');
 
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || 'null');
-
+    
     if (!token || !user || user.role !== 'admin') {
       navigate('/login');
       return;
@@ -39,13 +62,13 @@ function Admin() {
 
     try {
       const [usersRes, ordersRes, rechargesRes, statsRes, newsRes] = await Promise.all([
-        api.get('/api/admin/users', {
+        api.get(`/api/admin/users?page=${usersPage}&limit=7&search=${encodeURIComponent(usersSearch)}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        api.get('/api/admin/orders', {
+        api.get(`/api/admin/orders?page=${ordersPage}&limit=7&search=${encodeURIComponent(ordersSearch)}&status=${encodeURIComponent(ordersStatusFilter)}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        api.get('/api/admin/recharges', {
+        api.get(`/api/admin/recharges?page=${rechargesPage}&limit=7&status=${encodeURIComponent(rechargesStatusFilter)}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
         api.get('/api/admin/stats', {
@@ -53,24 +76,27 @@ function Admin() {
         }),
         api.get('/api/news')
       ]);
-
-      console.log('Fetched data:', {
-        users: usersRes.data,
-        orders: ordersRes.data,
-        recharges: rechargesRes.data,
-        stats: statsRes.data,
-        news: newsRes.data
-      });
-
-      setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
-      setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
-      setRecharges(Array.isArray(rechargesRes.data) ? rechargesRes.data : []);
+      
+      setUsers(Array.isArray(usersRes.data.users) ? usersRes.data.users : []);
+      setUsersTotalPages(usersRes.data.totalPages || 1);
+      setOrders(Array.isArray(ordersRes.data.orders) ? ordersRes.data.orders : []);
+      setOrdersTotalPages(ordersRes.data.totalPages || 1);
+      setRecharges(Array.isArray(rechargesRes.data.recharges) ? rechargesRes.data.recharges : []);
+      setRechargesTotalPages(rechargesRes.data.totalPages || 1);
       setStats(statsRes.data);
       setNews(Array.isArray(newsRes.data) ? newsRes.data : []);
-
-      // Count pending orders and recharges
-      const pendingOrders = Array.isArray(ordersRes.data) ? ordersRes.data.filter(order => order.status === 'Đang xử lí') : [];
-      const pendingRecharges = Array.isArray(rechargesRes.data) ? rechargesRes.data.filter(recharge => recharge.status === 'Đang xử lí') : [];
+      
+      // Count pending orders and recharges (need to fetch all for accurate count)
+      const [allOrdersRes, allRechargesRes] = await Promise.all([
+        api.get('/api/admin/orders?page=1&limit=10000', {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        api.get('/api/admin/recharges?page=1&limit=10000', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+      const pendingOrders = Array.isArray(allOrdersRes.data.orders) ? allOrdersRes.data.orders.filter(order => order.status === 'Đang xử lí') : [];
+      const pendingRecharges = Array.isArray(allRechargesRes.data.recharges) ? allRechargesRes.data.recharges.filter(recharge => recharge.status === 'Đang xử lí') : [];
       setPendingOrdersCount(pendingOrders.length);
       setPendingRechargesCount(pendingRecharges.length);
     } catch (error) {
@@ -85,32 +111,52 @@ function Admin() {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, usersPage, usersSearch, ordersPage, ordersSearch, ordersStatusFilter, rechargesPage, rechargesStatusFilter]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleAddBalance = async () => {
-    if (!addBalanceAmount || addBalanceAmount <= 0) {
-      alert('Vui lòng nhập số tiền hợp lệ');
+    const value = Number(addBalanceAmount);
+    if (!Number.isFinite(value) || value <= 0) {
+      alert('Vui lòng nhập số tiền hợp lệ (> 0)');
       return;
     }
 
+    const delta = balanceMode === 'add' ? value : -value;
     const token = localStorage.getItem('token');
     try {
-      await api.post(`/api/admin/users/${selectedUser._id}/add-balance`, 
-        { amount: parseFloat(addBalanceAmount) },
+      await api.post(
+        `/api/admin/users/${selectedUser._id}/add-balance`,
+        { amount: delta },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      alert('Cộng tiền thành công!');
+      alert('Cập nhật số dư thành công!');
       setShowAddBalanceModal(false);
       setAddBalanceAmount('');
+      setBalanceMode('add');
       setSelectedUser(null);
       fetchData();
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Bạn chắc chắn muốn xóa user này và dữ liệu liên quan?')) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/admin/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Đã xóa user');
+      fetchData();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa user');
     }
   };
 
@@ -141,20 +187,60 @@ function Admin() {
     }
   };
 
-  const handleRejectRecharge = async (rechargeId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn từ chối yêu cầu nạp tiền này?')) {
+  const handleRejectRecharge = (rechargeId) => {
+    setSelectedRechargeId(rechargeId);
+    setRejectionReason('');
+    setShowRejectModal(true);
+  };
+
+  const confirmRejectRecharge = async () => {
+    if (!rejectionReason.trim()) {
+      alert('Vui lòng nhập lý do từ chối');
       return;
     }
     const token = localStorage.getItem('token');
     try {
-      await api.put(`/api/admin/recharges/${rechargeId}/reject`,
-        {},
+      await api.put(`/api/admin/recharges/${selectedRechargeId}/reject`,
+        { rejectionReason: rejectionReason.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       alert('Từ chối nạp tiền thành công!');
+      setShowRejectModal(false);
+      setSelectedRechargeId(null);
+      setRejectionReason('');
       fetchData();
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleViewBill = async (rechargeId) => {
+    // Check cache first
+    if (billCache[rechargeId]) {
+      setSelectedBill(billCache[rechargeId]);
+      setShowBillModal(true);
+      return;
+    }
+
+    // Show modal with loading state
+    setShowBillModal(true);
+    setSelectedBill(null);
+    setLoadingBill(true);
+
+    const token = localStorage.getItem('token');
+    try {
+      const response = await api.get(`/api/admin/recharges/${rechargeId}/bill`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const billImage = response.data.billImage;
+      // Cache the image
+      setBillCache(prev => ({ ...prev, [rechargeId]: billImage }));
+      setSelectedBill(billImage);
+    } catch (error) {
+      alert('Không thể tải hình bill: ' + (error.response?.data?.message || error.message));
+      setShowBillModal(false);
+    } finally {
+      setLoadingBill(false);
     }
   };
 
@@ -209,6 +295,36 @@ function Admin() {
     }
   };
 
+  const handleAddVoucher = (user) => {
+    setSelectedUserForVoucher(user);
+    setVoucherDiscount(user.discount || '0');
+    setShowVoucherModal(true);
+  };
+
+  const confirmAddVoucher = async () => {
+    const discount = parseInt(voucherDiscount);
+    if (isNaN(discount) || discount < 0 || discount > 100) {
+      alert('Giảm giá phải từ 0 đến 100');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    try {
+      await api.post(`/api/admin/users/${selectedUserForVoucher._id}/voucher`, {
+        discount
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Cập nhật voucher thành công!');
+      setShowVoucherModal(false);
+      setSelectedUserForVoucher(null);
+      setVoucherDiscount('');
+      fetchData();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
@@ -232,14 +348,28 @@ function Admin() {
             <h3>Tổng Đơn Hàng</h3>
             <p className="stat-value">{stats.totalOrders}</p>
           </div>
-          <div className="stat-card">
-            <h3>Doanh Thu</h3>
-            <p className="stat-value">{stats.totalRevenue.toLocaleString('vi-VN')}đ</p>
-          </div>
         </div>
       )}
 
       <div className="admin-tabs">
+        <button 
+          className={activeTab === 'revenue' ? 'active' : ''}
+          onClick={() => setActiveTab('revenue')}
+        >
+          Quản Lý Doanh Thu
+        </button>
+        <button 
+          className={activeTab === 'announcement' ? 'active' : ''}
+          onClick={() => setActiveTab('announcement')}
+        >
+          Quản Lý Thông Báo
+        </button>
+        <button 
+          className={activeTab === 'pricing' ? 'active' : ''}
+          onClick={() => setActiveTab('pricing')}
+        >
+          Quản Lý Bảng Giá
+        </button>
         <button 
           className={activeTab === 'users' ? 'active' : ''}
           onClick={() => setActiveTab('users')}
@@ -274,22 +404,77 @@ function Admin() {
         </button>
       </div>
 
+      {activeTab === 'revenue' && (
+        <RevenueDashboard />
+      )}
+
+      {activeTab === 'announcement' && (
+        <AnnouncementEditor />
+      )}
+
+      {activeTab === 'pricing' && (
+        <PricingManager />
+      )}
+
       {activeTab === 'users' && (
-        <div className="users-table">
-          <div className="table-header">
+        <div className="modern-table-container">
+          <div className="table-header-bar">
+            <div className="header-title">
+              <span className="info-icon">ℹ️</span>
+              <span>QUẢN LÝ USERS</span>
+            </div>
+          </div>
+
+          <div className="table-controls">
+            <div className="control-left">
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Tìm kiếm theo username hoặc email..."
+                value={usersSearch}
+                onChange={(e) => {
+                  setUsersSearch(e.target.value);
+                  setUsersPage(1);
+                }}
+              />
+            </div>
+            <div className="control-right">
+              <button className="btn-search" onClick={() => setUsersPage(1)}>
+                <span className="search-icon">🔍</span>
+                Tìm kiếm
+              </button>
+              <button className="btn-clear-filter" onClick={() => {
+                setUsersSearch('');
+                setUsersPage(1);
+              }}>
+                <span className="trash-icon">🗑️</span>
+                Bỏ lọc
+              </button>
+            </div>
+          </div>
+
+          <div className="modern-table">
+            <div className="modern-table-header">
+              <div className="col-checkbox">
+                <input type="checkbox" />
+              </div>
             <div className="col-username">Username</div>
             <div className="col-email">Email</div>
             <div className="col-balance">Số Dư</div>
             <div className="col-role">Role</div>
             <div className="col-action">Hành Động</div>
           </div>
+
           {users.length === 0 ? (
             <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
               Chưa có user nào
             </div>
           ) : (
             users.map(user => (
-              <div key={user._id} className="table-row">
+                <div key={user._id} className="modern-table-row">
+                  <div className="col-checkbox">
+                    <input type="checkbox" />
+                  </div>
                 <div className="col-username">{user.username}</div>
                 <div className="col-email">{user.email}</div>
                 <div className="col-balance">{user.balance?.toLocaleString('vi-VN') || '0'}đ</div>
@@ -309,20 +494,109 @@ function Admin() {
                     onClick={() => {
                       setSelectedUser(user);
                       setShowAddBalanceModal(true);
+                        setBalanceMode('add');
+                        setAddBalanceAmount('');
                     }}
                   >
-                    + Tiền
+                      ± Tiền
+                    </button>
+                    <button
+                      className="btn-reject"
+                      style={{ marginLeft: '0.5rem' }}
+                      onClick={() => handleDeleteUser(user._id)}
+                    >
+                      Xóa
                   </button>
                 </div>
               </div>
             ))
+            )}
+          </div>
+
+          <div className="table-footer">
+            <div className="table-info">
+              Showing {users.length} of {stats?.totalUsers || 0} Users
+            </div>
+          </div>
+          {usersTotalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', padding: '1rem' }}>
+              <button
+                onClick={() => setUsersPage(prev => Math.max(1, prev - 1))}
+                disabled={usersPage === 1}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: usersPage === 1 ? '#ccc' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: usersPage === 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                ← Trước
+              </button>
+              <span style={{ color: '#666' }}>
+                Trang {usersPage} / {usersTotalPages}
+              </span>
+              <button
+                onClick={() => setUsersPage(prev => Math.min(usersTotalPages, prev + 1))}
+                disabled={usersPage === usersTotalPages}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: usersPage === usersTotalPages ? '#ccc' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: usersPage === usersTotalPages ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Sau →
+              </button>
+            </div>
           )}
         </div>
       )}
 
       {activeTab === 'recharges' && (
-        <div className="recharges-table">
-          <div className="table-header">
+        <div className="modern-table-container">
+          <div className="table-header-bar">
+            <div className="header-title">
+              <span className="info-icon">ℹ️</span>
+              <span>QUẢN LÝ NẠP TIỀN</span>
+            </div>
+          </div>
+
+          <div className="table-controls">
+            <div className="control-left">
+              <select
+                className="status-filter-select"
+                value={rechargesStatusFilter}
+                onChange={(e) => {
+                  setRechargesStatusFilter(e.target.value);
+                  setRechargesPage(1);
+                }}
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="Đang xử lí">Đang xử lí</option>
+                <option value="Hoàn thành">Hoàn thành</option>
+                <option value="Từ chối">Từ chối</option>
+              </select>
+            </div>
+            <div className="control-right">
+              <button className="btn-clear-filter" onClick={() => {
+                setRechargesStatusFilter('');
+                setRechargesPage(1);
+              }}>
+                <span className="trash-icon">🗑️</span>
+                Bỏ lọc
+              </button>
+            </div>
+          </div>
+
+          <div className="modern-table">
+            <div className="modern-table-header">
+              <div className="col-checkbox">
+                <input type="checkbox" />
+              </div>
             <div className="col-date">Ngày</div>
             <div className="col-user">User</div>
             <div className="col-amount">Số Tiền</div>
@@ -331,13 +605,17 @@ function Admin() {
             <div className="col-status">Trạng Thái</div>
             <div className="col-action">Hành Động</div>
           </div>
+
           {recharges.length === 0 ? (
             <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
               Chưa có yêu cầu nạp tiền nào
             </div>
           ) : (
             recharges.map(recharge => (
-              <div key={recharge._id} className="table-row">
+                <div key={recharge._id} className="modern-table-row">
+                  <div className="col-checkbox">
+                    <input type="checkbox" />
+                  </div>
                 <div className="col-date">{formatDate(recharge.createdAt)}</div>
                 <div className="col-user">{recharge.userId?.username || 'N/A'}</div>
                 <div className="col-amount">{recharge.amount.toLocaleString('vi-VN')}đ</div>
@@ -345,10 +623,7 @@ function Admin() {
                 <div className="col-bill">
                   <button 
                     className="btn-view-bill"
-                    onClick={() => {
-                      setSelectedBill(recharge.billImage);
-                      setShowBillModal(true);
-                    }}
+                      onClick={() => handleViewBill(recharge._id)}
                   >
                     Xem Bill
                   </button>
@@ -357,6 +632,11 @@ function Admin() {
                   <span className={`status-badge status-${recharge.status.replace(/\s+/g, '')}`}>
                     {recharge.status}
                   </span>
+                    {recharge.status === 'Từ chối' && recharge.rejectionReason && (
+                      <div style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: '#d32f2f', fontStyle: 'italic' }}>
+                        Lý do: {recharge.rejectionReason}
+                      </div>
+                    )}
                 </div>
                 <div className="col-action">
                   {recharge.status === 'Đang xử lí' && (
@@ -378,28 +658,132 @@ function Admin() {
                 </div>
               </div>
             ))
+            )}
+          </div>
+
+          <div className="table-footer">
+            <div className="table-info">
+              Showing {recharges.length} of {rechargesTotalPages * 7} Recharges
+            </div>
+          </div>
+          {rechargesTotalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', padding: '1rem' }}>
+              <button
+                onClick={() => setRechargesPage(prev => Math.max(1, prev - 1))}
+                disabled={rechargesPage === 1}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: rechargesPage === 1 ? '#ccc' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: rechargesPage === 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                ← Trước
+              </button>
+              <span style={{ color: '#666' }}>
+                Trang {rechargesPage} / {rechargesTotalPages}
+              </span>
+              <button
+                onClick={() => setRechargesPage(prev => Math.min(rechargesTotalPages, prev + 1))}
+                disabled={rechargesPage === rechargesTotalPages}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: rechargesPage === rechargesTotalPages ? '#ccc' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: rechargesPage === rechargesTotalPages ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Sau →
+              </button>
+            </div>
           )}
         </div>
       )}
 
       {activeTab === 'orders' && (
-        <div className="orders-table">
-          <div className="table-header">
+        <div className="modern-table-container">
+          <div className="table-header-bar">
+            <div className="header-title">
+              <span className="info-icon">ℹ️</span>
+              <span>QUẢN LÝ ĐƠN HÀNG</span>
+            </div>
+          </div>
+
+          <div className="table-controls">
+            <div className="control-left">
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Tìm kiếm theo mã đơn hàng hoặc tên user..."
+                value={ordersSearch}
+                onChange={(e) => {
+                  setOrdersSearch(e.target.value);
+                  setOrdersPage(1);
+                }}
+              />
+              <select
+                className="status-filter-select"
+                value={ordersStatusFilter}
+                onChange={(e) => {
+                  setOrdersStatusFilter(e.target.value);
+                  setOrdersPage(1);
+                }}
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="Đang xử lí">Đang xử lí</option>
+                <option value="Đang cày">Đang cày</option>
+                <option value="Hoàn thành">Hoàn thành</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="control-right">
+              <button className="btn-search" onClick={() => setOrdersPage(1)}>
+                <span className="search-icon">🔍</span>
+                Tìm kiếm
+              </button>
+              <button className="btn-clear-filter" onClick={() => {
+                setOrdersSearch('');
+                setOrdersStatusFilter('');
+                setOrdersPage(1);
+              }}>
+                <span className="trash-icon">🗑️</span>
+                Bỏ lọc
+              </button>
+            </div>
+          </div>
+
+          <div className="modern-table">
+            <div className="modern-table-header">
+              <div className="col-checkbox">
+                <input type="checkbox" />
+              </div>
             <div className="col-date">Ngày</div>
+              <div className="col-code">Mã Đơn</div>
             <div className="col-user">User</div>
             <div className="col-order">Đơn Hàng</div>
             <div className="col-amount">Số Tiền</div>
             <div className="col-status">Trạng Thái</div>
             <div className="col-action">Hành Động</div>
           </div>
+
           {orders.length === 0 ? (
             <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
               Chưa có đơn hàng nào
             </div>
           ) : (
             orders.map(order => (
-              <div key={order._id} className="table-row">
+                <div key={order._id} className="modern-table-row">
+                  <div className="col-checkbox">
+                    <input type="checkbox" />
+                  </div>
                 <div className="col-date">{formatDate(order.createdAt)}</div>
+                  <div className="col-code" style={{ color: '#2196F3', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    {order._id ? order._id.toString().substring(0, 8).toUpperCase() : 'N/A'}
+                  </div>
                 <div className="col-user">{order.userId?.username || 'N/A'}</div>
                 <div className="col-order">
                   {order.orderType === 'service' 
@@ -433,6 +817,48 @@ function Admin() {
                 </div>
               </div>
             ))
+            )}
+          </div>
+
+          <div className="table-footer">
+            <div className="table-info">
+              Showing {orders.length} of {stats?.totalOrders || 0} Orders
+            </div>
+          </div>
+          {ordersTotalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', padding: '1rem' }}>
+              <button
+                onClick={() => setOrdersPage(prev => Math.max(1, prev - 1))}
+                disabled={ordersPage === 1}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: ordersPage === 1 ? '#ccc' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: ordersPage === 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                ← Trước
+              </button>
+              <span style={{ color: '#666' }}>
+                Trang {ordersPage} / {ordersTotalPages}
+              </span>
+              <button
+                onClick={() => setOrdersPage(prev => Math.min(ordersTotalPages, prev + 1))}
+                disabled={ordersPage === ordersTotalPages}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: ordersPage === ordersTotalPages ? '#ccc' : '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: ordersPage === ordersTotalPages ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Sau →
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -498,7 +924,7 @@ function Admin() {
             <p><strong>User:</strong> {selectedUser?.username}</p>
             <p><strong>Số dư hiện tại:</strong> {selectedUser?.balance?.toLocaleString('vi-VN') || '0'}đ</p>
             <div className="form-group">
-              <label>Số tiền cộng thêm:</label>
+              <label>Số tiền (+ thêm / - trừ):</label>
               <input
                 type="number"
                 value={addBalanceAmount}
@@ -506,6 +932,24 @@ function Admin() {
                 placeholder="Nhập số tiền"
                 min="1"
               />
+              <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className={balanceMode === 'add' ? 'btn-confirm' : 'btn-cancel'}
+                  onClick={() => setBalanceMode('add')}
+                  style={{ padding: '0.4rem 0.8rem' }}
+                >
+                  + Cộng
+                </button>
+                <button
+                  type="button"
+                  className={balanceMode === 'subtract' ? 'btn-confirm' : 'btn-cancel'}
+                  onClick={() => setBalanceMode('subtract')}
+                  style={{ padding: '0.4rem 0.8rem' }}
+                >
+                  - Trừ
+                </button>
+              </div>
             </div>
             <div className="modal-actions">
               <button onClick={handleAddBalance} className="btn-confirm">Xác Nhận</button>
@@ -516,14 +960,38 @@ function Admin() {
       )}
 
       {showBillModal && (
-        <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
+        <div className="modal-overlay" onClick={() => {
+          setShowBillModal(false);
+          setLoadingBill(false);
+        }}>
           <div className="modal-content modal-bill" onClick={(e) => e.stopPropagation()}>
             <h2>Hình Bill</h2>
-            {selectedBill && (
-              <img src={selectedBill} alt="Bill" style={{ maxWidth: '100%', maxHeight: '70vh', marginTop: '1rem' }} />
+            {loadingBill ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
+                <div style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>⏳ Đang tải hình bill...</div>
+                <div style={{ fontSize: '0.9rem', color: '#999' }}>Vui lòng đợi trong giây lát</div>
+              </div>
+            ) : selectedBill ? (
+              <img 
+                src={selectedBill} 
+                alt="Bill" 
+                style={{ maxWidth: '100%', maxHeight: '70vh', marginTop: '1rem', display: 'block', margin: '1rem auto' }}
+                onLoad={() => setLoadingBill(false)}
+                onError={() => {
+                  alert('Không thể hiển thị hình bill');
+                  setShowBillModal(false);
+                }}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#999' }}>
+                Không có hình bill
+              </div>
             )}
             <div className="modal-actions">
-              <button onClick={() => setShowBillModal(false)} className="btn-cancel">Đóng</button>
+              <button onClick={() => {
+                setShowBillModal(false);
+                setLoadingBill(false);
+              }} className="btn-cancel">Đóng</button>
             </div>
           </div>
         </div>
@@ -622,6 +1090,23 @@ function Admin() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2>Chi Tiết User</h2>
             
+            <div style={{ marginTop: '1rem', padding: '1rem', background: '#f5f5f5', borderRadius: '8px', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <strong>Username:</strong> {userDetails.username}
+                </div>
+                <div>
+                  <strong>Email:</strong> {userDetails.email}
+                </div>
+                <div>
+                  <strong>Số dư:</strong> {userDetails.balance?.toLocaleString('vi-VN') || '0'} đ
+                </div>
+                <div>
+                  <strong>Giảm giá:</strong> {userDetails.discount > 0 ? `${userDetails.discount}%` : 'Không có'}
+                </div>
+              </div>
+            </div>
+            
             <div style={{ marginTop: '1rem' }}>
               <h3>📋 Lịch Sử Đơn Hàng</h3>
               {userDetails.orders.length === 0 ? (
@@ -638,7 +1123,23 @@ function Admin() {
                     <div key={order._id} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1.5fr', padding: '0.8rem', borderBottom: '1px solid #eee' }}>
                       <div>{formatDate(order.createdAt)}</div>
                       <div>{order.orderType === 'service' ? `${order.serviceName} - ${order.gameName}` : 'Đơn hàng sản phẩm'}</div>
-                      <div>{order.totalAmount?.toLocaleString('vi-VN') || '0'}đ</div>
+                      <div>
+                        {order.discountAmount > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.85rem' }}>
+                              {order.originalAmount?.toLocaleString('vi-VN') || order.totalAmount?.toLocaleString('vi-VN') || '0'}đ
+                            </span>
+                            <span style={{ color: '#000', fontWeight: 'bold' }}>
+                              {order.totalAmount?.toLocaleString('vi-VN') || '0'}đ
+                            </span>
+                            <span style={{ color: '#4CAF50', fontSize: '0.8rem' }}>
+                              (Giảm {order.discount}%)
+                            </span>
+                          </div>
+                        ) : (
+                          <span>{order.totalAmount?.toLocaleString('vi-VN') || '0'}đ</span>
+                        )}
+                      </div>
                       <div>{order.status}</div>
                     </div>
                   ))}
@@ -671,7 +1172,78 @@ function Admin() {
             </div>
 
             <div className="modal-actions" style={{ marginTop: '2rem' }}>
+              <button 
+                onClick={() => {
+                  if (userDetails && userDetails._id) {
+                    handleAddVoucher(userDetails);
+                  } else {
+                    alert('Không tìm thấy thông tin user');
+                  }
+                }}
+                className="btn-confirm"
+                style={{ marginRight: '1rem' }}
+              >
+                Thêm Voucher
+              </button>
               <button onClick={() => setShowUserDetailModal(false)} className="btn-cancel">Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVoucherModal && selectedUserForVoucher && (
+        <div className="modal-overlay" onClick={() => setShowVoucherModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <h2>Thêm Voucher Giảm Giá</h2>
+            <p><strong>User:</strong> {selectedUserForVoucher.username}</p>
+            <p><strong>Voucher hiện tại:</strong> {selectedUserForVoucher.discount || 0}%</p>
+            <div className="form-group">
+              <label>Giảm giá (%):</label>
+              <input
+                type="number"
+                value={voucherDiscount}
+                onChange={(e) => setVoucherDiscount(e.target.value)}
+                placeholder="Nhập % giảm giá (0-100, 0 để xóa voucher)"
+                min="0"
+                max="100"
+              />
+              <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.5rem' }}>
+                Nhập 0 để xóa voucher
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button onClick={confirmAddVoucher} className="btn-confirm">Xác Nhận</button>
+              <button onClick={() => {
+                setShowVoucherModal(false);
+                setSelectedUserForVoucher(null);
+                setVoucherDiscount('');
+              }} className="btn-cancel">Hủy</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRejectModal && (
+        <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <h2>Từ Chối Nạp Tiền</h2>
+            <p style={{ marginBottom: '1rem', color: '#666' }}>Vui lòng nhập lý do từ chối:</p>
+            <div className="form-group">
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Nhập lý do từ chối..."
+                rows="4"
+                style={{ width: '100%', padding: '0.8rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div className="modal-actions">
+              <button onClick={confirmRejectRecharge} className="btn-reject">Xác Nhận Từ Chối</button>
+              <button onClick={() => {
+                setShowRejectModal(false);
+                setSelectedRechargeId(null);
+                setRejectionReason('');
+              }} className="btn-cancel">Hủy</button>
             </div>
           </div>
         </div>

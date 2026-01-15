@@ -399,3 +399,208 @@
   .col-status::before { content: "Trạng Thái: "; font-weight: bold; }
 }
 
+/* Modern Table Styles */
+.modern-table-container {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 2rem;
+}
+
+.table-header-bar {
+  background: linear-gradient(135deg, #26A69A 0%, #00897B 100%);
+  padding: 1rem 1.5rem;
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-icon {
+  font-size: 1.2rem;
+}
+
+.table-controls {
+  background: #f5f5f5;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.control-left {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex: 1;
+}
+
+.search-input {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  min-width: 200px;
+  flex: 1;
+}
+
+.status-filter-select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  min-width: 180px;
+}
+
+.status-filter-select:hover {
+  border-color: #bbb;
+}
+
+.control-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-search,
+.btn-clear-filter {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.btn-search:hover,
+.btn-clear-filter:hover {
+  background: #e0e0e0;
+  border-color: #bbb;
+}
+
+.search-icon,
+.trash-icon {
+  font-size: 1rem;
+}
+
+.modern-table {
+  border: 1px solid #e0e0e0;
+}
+
+.modern-table-header {
+  display: grid;
+  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+  color: white;
+  font-weight: bold;
+  padding: 1rem;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Users table: checkbox + username + email + balance + role + action */
+.modern-table-container:has(.col-username) .modern-table-header,
+.modern-table-container:has(.col-username) .modern-table-row {
+  grid-template-columns: 50px 1.5fr 2fr 1fr 1fr 1.5fr;
+}
+
+/* Orders table: checkbox + date + code + user + order + amount + status + action */
+.modern-table-container:has(.col-code) .modern-table-header,
+.modern-table-container:has(.col-code) .modern-table-row {
+  grid-template-columns: 50px 1.2fr 1fr 1.5fr 2fr 1.2fr 1.5fr 1fr;
+}
+
+/* Recharges table: checkbox + date + user + amount + method + bill + status + action */
+.modern-table-container:has(.col-method) .modern-table-header,
+.modern-table-container:has(.col-method) .modern-table-row {
+  grid-template-columns: 50px 1.2fr 1.5fr 1fr 1fr 1fr 1.5fr 1.5fr;
+}
+
+.modern-table-header .col-checkbox,
+.modern-table-header .col-username,
+.modern-table-header .col-email,
+.modern-table-header .col-balance,
+.modern-table-header .col-role,
+.modern-table-header .col-date,
+.modern-table-header .col-code,
+.modern-table-header .col-user,
+.modern-table-header .col-order,
+.modern-table-header .col-amount,
+.modern-table-header .col-method,
+.modern-table-header .col-bill,
+.modern-table-header .col-status,
+.modern-table-header .col-action {
+  color: white !important;
+}
+
+.modern-table-row {
+  display: grid;
+  padding: 1rem;
+  gap: 1rem;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  transition: background-color 0.2s ease;
+}
+
+.modern-table-row:hover {
+  background: #f5f5f5;
+}
+
+.modern-table-row:last-child {
+  border-bottom: none;
+}
+
+.col-checkbox {
+  display: flex;
+  justify-content: center;
+}
+
+.col-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Set black color for date, order code, and amount in table rows (not header) */
+.modern-table-row .col-date,
+.modern-table-row .col-code,
+.modern-table-row .col-amount {
+  color: black !important;
+}
+
+.table-footer {
+  background: white;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  border-top: 1px solid #e0e0e0;
+}
+
+.table-info {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: #999;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+

@@ -31,6 +31,9 @@ router.post('/', authenticateToken, async (req, res) => {
     if (!amountNum || isNaN(amountNum) || amountNum < 5000) {
       return res.status(400).json({ message: 'Số tiền tối thiểu là 5.000đ' });
     }
+    if (amountNum > 10000000) {
+      return res.status(400).json({ message: 'Số tiền tối đa là 10.000.000đ' });
+    }
 
     if (!billImage || typeof billImage !== 'string') {
       return res.status(400).json({ message: 'Vui lòng upload hình bill' });
@@ -57,11 +60,28 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Get user's recharge requests
+// Get user's recharge requests with pagination
 router.get('/my-recharges', authenticateToken, async (req, res) => {
   try {
-    const recharges = await Recharge.find({ userId: req.userId }).sort({ createdAt: -1 });
-    res.json(recharges);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+    const skip = (page - 1) * limit;
+
+    const [recharges, total] = await Promise.all([
+      Recharge.find({ userId: req.userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Recharge.countDocuments({ userId: req.userId })
+    ]);
+
+    res.json({
+      recharges,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
