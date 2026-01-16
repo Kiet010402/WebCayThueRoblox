@@ -138,7 +138,7 @@ function Home() {
             <h3>📱 LIÊN HỆ VỚI CHÚNG TÔI</h3>
             <p><strong>Discord:</strong> Kaihon</p>
             <p><strong>Gmail:</strong> dkiet9337@gmail.com</p>
-            <p><strong>Số điện thoại:</strong> 0968883202</p>
+            <p><strong>Số điện thoại:</strong> 0936596825</p>
           </div>
 
           <div className="info-card">

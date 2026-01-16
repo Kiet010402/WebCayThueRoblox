@@ -68,8 +68,6 @@ function Admin() {
   const [accountsGameFilter, setAccountsGameFilter] = useState('');
   const [accountsStatusFilter, setAccountsStatusFilter] = useState('');
   const [availableGames, setAvailableGames] = useState(['Anime Crusader', 'Anime Vanguards', 'Universal Tower Defense', 'The Forge']);
-  const [newGameInput, setNewGameInput] = useState('');
-  const [showAddGameInput, setShowAddGameInput] = useState(false);
   // Games management
   const [games, setGames] = useState([]);
   const [newGameName, setNewGameName] = useState('');
@@ -354,20 +352,6 @@ function Admin() {
   };
 
   // Account management handlers
-  const handleAddGame = () => {
-    if (!newGameInput.trim()) {
-      alert('Vui lòng nhập tên game');
-      return;
-    }
-    if (availableGames.includes(newGameInput.trim())) {
-      alert('Game này đã tồn tại');
-      return;
-    }
-    setAvailableGames([...availableGames, newGameInput.trim()]);
-    setNewGameInput('');
-    setShowAddGameInput(false);
-  };
-
   const handleCreateAccount = async () => {
     if (!newAccountGame || !newAccountUsername || !newAccountPassword || !newAccountOriginalPrice || !newAccountDiscountedPrice) {
       alert('Vui lòng điền đầy đủ thông tin');
@@ -1081,81 +1065,15 @@ function Admin() {
                   <div className="detail-column" style={{ maxWidth: '600px' }}>
                     <div className="detail-item">
                       <label>Game</label>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <select
-                          value={newAccountGame}
-                          onChange={(e) => setNewAccountGame(e.target.value)}
-                          style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
-                        >
-                          {availableGames.map((game) => (
-                            <option key={game} value={game}>{game}</option>
-                          ))}
-                        </select>
-                        {!showAddGameInput ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowAddGameInput(true)}
-                            style={{
-                              padding: '0.5rem 1rem',
-                              backgroundColor: '#4CAF50',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.9rem',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            + Thêm game
-                          </button>
-                        ) : (
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flex: 1 }}>
-                            <input
-                              type="text"
-                              value={newGameInput}
-                              onChange={(e) => setNewGameInput(e.target.value)}
-                              placeholder="Tên game mới"
-                              style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleAddGame();
-                                }
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={handleAddGame}
-                              style={{
-                                padding: '0.5rem',
-                                backgroundColor: '#2196F3',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              ✓
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowAddGameInput(false);
-                                setNewGameInput('');
-                              }}
-                              style={{
-                                padding: '0.5rem',
-                                backgroundColor: '#f44336',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <select
+                        value={newAccountGame}
+                        onChange={(e) => setNewAccountGame(e.target.value)}
+                        style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                      >
+                        {availableGames.map((game) => (
+                          <option key={game} value={game}>{game}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="detail-item">
                       <label>Thông tin</label>

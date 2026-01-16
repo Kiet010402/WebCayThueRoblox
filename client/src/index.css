@@ -22,3 +22,60 @@ a {
   text-decoration: none;
   color: inherit;
 }
+
+/* Global Modal Responsive Styles */
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0.5rem;
+    align-items: flex-start;
+    padding-top: 2rem;
+  }
+
+  .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    border-radius: 8px 8px 0 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    border-radius: 0;
+    max-height: 100vh;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 1rem !important;
+  }
+
+  .modal-header h2 {
+    font-size: 1.2rem !important;
+  }
+}
+
+/* Global Form Input Responsive */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+  }
+}
+
+/* Touch-friendly buttons */
+@media (max-width: 768px) {
+  button,
+  .btn,
+  a.btn {
+    min-height: 44px; /* Apple's recommended touch target size */
+    padding: 0.75rem 1rem;
+  }
+}

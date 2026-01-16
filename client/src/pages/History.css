@@ -96,6 +96,11 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.history-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .table-header {
   display: grid;
   grid-template-columns: 1.2fr 1fr 2fr 1.2fr 1.5fr 1fr;
@@ -432,56 +437,47 @@
 }
 
 @media (max-width: 768px) {
-  .table-header,
-  .table-row {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-  }
-
-  .table-header {
-    display: none;
-  }
-
-  .table-row {
-    border: 1px solid #ddd;
-    margin-bottom: 1rem;
-    border-radius: 8px;
+  .history-container {
     padding: 1rem;
   }
 
-  .table-row::before {
-    content: attr(data-label);
-    font-weight: bold;
-    color: #666;
+  .history-container h1 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
   }
 
-  .col-date::before {
-    content: 'Ngày: ';
-    font-weight: bold;
-    color: #666;
+  .history-stats {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
   }
 
-  .col-account::before {
-    content: 'Acc: ';
-    font-weight: bold;
-    color: #666;
+  .stat-card {
+    padding: 1.5rem;
   }
 
-  .col-amount::before {
-    content: 'Giá: ';
-    font-weight: bold;
-    color: #666;
+  .stat-value {
+    font-size: 1.5rem;
   }
 
-  .col-status::before {
-    content: 'Trạng thái: ';
-    font-weight: bold;
-    color: #666;
+  .history-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .history-table {
+    min-width: 800px;
+  }
+
+  .table-header,
+  .table-row {
+    min-width: 800px;
   }
 
   .table-controls {
     flex-direction: column;
     align-items: stretch;
+    gap: 1rem;
   }
 
   .control-left,
@@ -489,9 +485,32 @@
     width: 100%;
   }
 
+  .modern-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modern-table {
+    min-width: 800px;
+  }
+
   .modern-table-header,
   .modern-table-row {
-    grid-template-columns: 40px 1fr 1fr 1.5fr 1fr 1.2fr;
+    min-width: 800px;
     font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .history-container {
+    padding: 0.75rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .stat-value {
+    font-size: 1.3rem;
   }
 }

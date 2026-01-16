@@ -35,7 +35,7 @@ router.get('/games-stats', async (req, res) => {
     // Get games from Game model (managed by admin)
     const gamesFromDB = await Game.find().sort({ name: 1 });
     
-    // Default games if no games in DB
+    // Default games
     const defaultGames = [
       { name: 'Anime Vanguard', image: 'https://i.ytimg.com/vi/yXZpEH82wvk/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLByxdkM2U4bW0HepWz6pbGOgpA6hQ' },
       { name: 'Anime Crusader', image: 'https://tr.rbxcdn.com/180DAY-7561624fd90f9424752bb9772e294ebc/768/432/Image/Webp/noFilter' },
@@ -43,10 +43,23 @@ router.get('/games-stats', async (req, res) => {
       { name: 'The Forge', image: 'https://tr.rbxcdn.com/180DAY-0fdafbcf3b254aabfb1ace6a538d22b7/500/280/Image/Jpeg/noFilter' }
     ];
     
-    // Use games from DB if available, otherwise use defaults
-    const gamesToProcess = gamesFromDB.length > 0 
-      ? gamesFromDB.map(g => ({ name: g.name, image: g.image || '' }))
-      : defaultGames;
+    // Merge games from DB with default games, avoiding duplicates
+    const dbGamesMap = new Map();
+    gamesFromDB.forEach(g => {
+      dbGamesMap.set(g.name.toLowerCase(), { name: g.name, image: g.image || '' });
+    });
+    
+    // Add default games that don't exist in DB
+    defaultGames.forEach(defaultGame => {
+      if (!dbGamesMap.has(defaultGame.name.toLowerCase())) {
+        dbGamesMap.set(defaultGame.name.toLowerCase(), defaultGame);
+      }
+    });
+    
+    // Convert map to array and sort by name
+    const gamesToProcess = Array.from(dbGamesMap.values()).sort((a, b) => 
+      a.name.localeCompare(b.name)
+    );
     
     // Get stats for each game
     const gamesWithStats = await Promise.all(

@@ -884,10 +884,16 @@ router.get('/accounts', authenticateAdmin, async (req, res) => {
 // Get all games (for dropdown)
 router.get('/accounts/games', authenticateAdmin, async (req, res) => {
   try {
-    const games = await Account.distinct('game');
+    // Get games from Game model (managed by admin)
+    const gamesFromDB = await Game.find().sort({ name: 1 });
+    
     // Default games
     const defaultGames = ['Anime Crusader', 'Anime Vanguards', 'Universal Tower Defense', 'The Forge'];
-    const allGames = [...new Set([...defaultGames, ...games])].sort();
+    
+    // Merge games from DB with default games, avoiding duplicates
+    const dbGameNames = gamesFromDB.map(g => g.name);
+    const allGames = [...new Set([...defaultGames, ...dbGameNames])].sort();
+    
     res.json(allGames);
   } catch (error) {
     res.status(500).json({ message: error.message });

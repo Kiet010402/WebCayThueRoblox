@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import './Profile.css';
@@ -23,32 +23,7 @@ function Profile() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = JSON.parse(localStorage.getItem('user') || 'null');
-    
-    if (!token || !userData) {
-      navigate('/login');
-      return;
-    }
-
-    fetchUserData();
-  }, [navigate]);
-
-  useEffect(() => {
-    if (activeTab === 'activity') {
-      fetchActivityLogs();
-    } else if (activeTab === 'balance') {
-      fetchBalanceHistory(balancePage, 7);
-    } else if (activeTab === 'account-history') {
-      fetchAccountHistory();
-    } else if (activeTab === 'personal') {
-      // Fetch all balance history for calculating totals
-      fetchBalanceHistory(1, 10000);
-    }
-  }, [activeTab, activityPage, balancePage, accountPage]);
-
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     const token = localStorage.getItem('token');
     try {
       const response = await api.get('/api/users/me', {
@@ -63,9 +38,9 @@ function Profile() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const fetchActivityLogs = async () => {
+  const fetchActivityLogs = useCallback(async () => {
     const token = localStorage.getItem('token');
     try {
       const response = await api.get(`/api/users/activity-log?page=${activityPage}&limit=10`, {
@@ -76,12 +51,12 @@ function Profile() {
     } catch (error) {
       console.error('Error fetching activity logs:', error);
     }
-  };
+  }, [activityPage]);
 
-  const fetchBalanceHistory = async () => {
+  const fetchBalanceHistory = useCallback(async (page = balancePage, limit = 7) => {
     const token = localStorage.getItem('token');
     try {
-      const response = await api.get(`/api/users/balance-history?page=${balancePage}&limit=7`, {
+      const response = await api.get(`/api/users/balance-history?page=${page}&limit=${limit}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBalanceHistory(response.data.history || []);
@@ -89,9 +64,9 @@ function Profile() {
     } catch (error) {
       console.error('Error fetching balance history:', error);
     }
-  };
+  }, [balancePage]);
 
-  const fetchAccountHistory = async () => {
+  const fetchAccountHistory = useCallback(async () => {
     const token = localStorage.getItem('token');
     try {
       const response = await api.get(`/api/users/account-history?page=${accountPage}&limit=5`, {
@@ -102,7 +77,32 @@ function Profile() {
     } catch (error) {
       console.error('Error fetching account history:', error);
     }
-  };
+  }, [accountPage]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = JSON.parse(localStorage.getItem('user') || 'null');
+    
+    if (!token || !userData) {
+      navigate('/login');
+      return;
+    }
+
+    fetchUserData();
+  }, [navigate, fetchUserData]);
+
+  useEffect(() => {
+    if (activeTab === 'activity') {
+      fetchActivityLogs();
+    } else if (activeTab === 'balance') {
+      fetchBalanceHistory(balancePage, 7);
+    } else if (activeTab === 'account-history') {
+      fetchAccountHistory();
+    } else if (activeTab === 'personal') {
+      // Fetch all balance history for calculating totals
+      fetchBalanceHistory(1, 10000);
+    }
+  }, [activeTab, activityPage, balancePage, accountPage, fetchActivityLogs, fetchBalanceHistory, fetchAccountHistory]);
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -131,6 +131,13 @@ function Profile() {
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra khi đổi mật khẩu');
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/');
+    window.location.reload();
   };
 
   const formatDate = (dateString) => {
@@ -236,7 +243,10 @@ function Profile() {
               <div className="profile-card">
                 <div className="profile-header">
                   <h2 className="section-title">Hồ sơ của bạn</h2>
-                  <button className="btn-edit">Chỉnh sửa thông tin</button>
+                  <div className="profile-header-actions">
+                    <button className="btn-edit">Chỉnh sửa thông tin</button>
+                    <button className="btn-logout-profile" onClick={handleLogout}>Đăng Xuất</button>
+                  </div>
                 </div>
                 <div className="profile-details">
                   <div className="detail-column">
@@ -300,21 +310,23 @@ function Profile() {
                   </button>
                 </div>
               </div>
-              <div className="activity-table">
-                <div className="table-header">
-                  <div className="col-time">Thời gian</div>
-                  <div className="col-action">Thao tác</div>
+              <div className="activity-table-wrapper">
+                <div className="activity-table">
+                  <div className="table-header">
+                    <div className="col-time">Thời gian</div>
+                    <div className="col-action">Thao tác</div>
+                  </div>
+                  {activityLogs.length === 0 ? (
+                    <div className="empty-state">Chưa có hoạt động nào</div>
+                  ) : (
+                    activityLogs.map(log => (
+                      <div key={log._id} className="table-row">
+                        <div className="col-time">{formatDate(log.createdAt)}</div>
+                        <div className="col-action">{log.action}</div>
+                      </div>
+                    ))
+                  )}
                 </div>
-                {activityLogs.length === 0 ? (
-                  <div className="empty-state">Chưa có hoạt động nào</div>
-                ) : (
-                  activityLogs.map(log => (
-                    <div key={log._id} className="table-row">
-                      <div className="col-time">{formatDate(log.createdAt)}</div>
-                      <div className="col-action">{log.action}</div>
-                    </div>
-                  ))
-                )}
               </div>
               {activityTotalPages > 1 && (
                 <div className="pagination">
@@ -356,29 +368,31 @@ function Profile() {
                   </button>
                 </div>
               </div>
-              <div className="balance-table">
-                <div className="table-header">
-                  <div className="col-time">Thời gian</div>
-                  <div className="col-initial">Số dư ban đầu</div>
-                  <div className="col-change">Số dư thay đổi</div>
-                  <div className="col-current">Số dư hiện tại</div>
-                  <div className="col-reason">Lý do</div>
-                </div>
-                {balanceHistory.length === 0 ? (
-                  <div className="empty-state">Chưa có lịch sử biến động</div>
-                ) : (
-                  balanceHistory.map(item => (
-                    <div key={item._id} className="table-row">
-                      <div className="col-time">{formatDate(item.createdAt)}</div>
-                      <div className="col-initial">{item.initialBalance?.toLocaleString('vi-VN') || '0'}₫</div>
-                      <div className={`col-change ${item.changeAmount >= 0 ? 'positive' : 'negative'}`}>
-                        {item.changeAmount >= 0 ? '+' : ''}{item.changeAmount?.toLocaleString('vi-VN') || '0'}₫
+              <div className="balance-table-wrapper">
+                <div className="balance-table">
+                  <div className="table-header">
+                    <div className="col-time">Thời gian</div>
+                    <div className="col-initial">Số dư ban đầu</div>
+                    <div className="col-change">Số dư thay đổi</div>
+                    <div className="col-current">Số dư hiện tại</div>
+                    <div className="col-reason">Lý do</div>
+                  </div>
+                  {balanceHistory.length === 0 ? (
+                    <div className="empty-state">Chưa có lịch sử biến động</div>
+                  ) : (
+                    balanceHistory.map(item => (
+                      <div key={item._id} className="table-row">
+                        <div className="col-time">{formatDate(item.createdAt)}</div>
+                        <div className="col-initial">{item.initialBalance?.toLocaleString('vi-VN') || '0'}₫</div>
+                        <div className={`col-change ${item.changeAmount >= 0 ? 'positive' : 'negative'}`}>
+                          {item.changeAmount >= 0 ? '+' : ''}{item.changeAmount?.toLocaleString('vi-VN') || '0'}₫
+                        </div>
+                        <div className="col-current">{item.currentBalance?.toLocaleString('vi-VN') || '0'}₫</div>
+                        <div className="col-reason">{item.reason}</div>
                       </div>
-                      <div className="col-current">{item.currentBalance?.toLocaleString('vi-VN') || '0'}₫</div>
-                      <div className="col-reason">{item.reason}</div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
               {balanceTotalPages > 1 && (
                 <div className="pagination">
