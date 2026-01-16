@@ -8,15 +8,14 @@ const orderSchema = new mongoose.Schema({
   },
   orderType: {
     type: String,
-    enum: ['product', 'service'],
+    enum: ['product', 'service', 'account'],
     default: 'product'
   },
-  // For product orders
-  items: [{
-    productId: mongoose.Schema.Types.ObjectId,
-    quantity: Number,
-    price: Number
-  }],
+  // For product and account orders
+  items: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: []
+  },
   // For service orders
   serviceName: String,
   gameName: String,

@@ -128,6 +128,23 @@ export default function RevenueDashboard() {
           <div className="revenue-number">{formatMoney(stats.profitLastMonth)}</div>
           <div className="revenue-label">Lợi Nhuận Tháng Trước</div>
         </div>
+
+        <div className="revenue-card">
+          <div className="revenue-number">{stats.accountsToday || 0}</div>
+          <div className="revenue-label">Acc Hôm Nay</div>
+        </div>
+        <div className="revenue-card">
+          <div className="revenue-number">{stats.accountsYesterday || 0}</div>
+          <div className="revenue-label">Acc Hôm Qua</div>
+        </div>
+        <div className="revenue-card">
+          <div className="revenue-number">{formatMoney(stats.accountRevenueToday || 0)}</div>
+          <div className="revenue-label">Doanh Thu Acc Hôm Nay</div>
+        </div>
+        <div className="revenue-card">
+          <div className="revenue-number">{formatMoney(stats.accountRevenueYesterday || 0)}</div>
+          <div className="revenue-label">Doanh Thu Acc Hôm Qua</div>
+        </div>
       </div>
     </div>
   );

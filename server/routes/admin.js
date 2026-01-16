@@ -9,6 +9,8 @@ const BalanceHistory = require('../models/BalanceHistory');
 const Announcement = require('../models/Announcement');
 const Pricing = require('../models/Pricing');
 const Voucher = require('../models/Voucher');
+const Account = require('../models/Account');
+const Game = require('../models/Game');
 const defaultCayThuePricing = require('../data/defaultCayThuePricing');
 const mongoose = require('mongoose');
 
@@ -205,7 +207,9 @@ router.get('/orders', authenticateAdmin, async (req, res) => {
     const search = req.query.search || '';
     const statusFilter = req.query.status || '';
 
-    const query = {};
+    const query = {
+      orderType: { $ne: 'account' } // Exclude account orders
+    };
     if (statusFilter) {
       query.status = statusFilter;
     }
@@ -366,25 +370,86 @@ router.get('/revenue-stats', authenticateAdmin, async (req, res) => {
         : { $gte: [dateExpr, new Date(0)] }
     };
 
-    const [totalOrders, ordersToday, ordersYesterday] = await Promise.all([
-      Order.countDocuments(resetAt ? { createdAt: { $gte: resetAt } } : {}),
-      Order.countDocuments({ createdAt: { $gte: todayStart, $lt: tomorrowStart } }),
-      Order.countDocuments({ createdAt: { $gte: yesterdayStart, $lt: todayStart } })
+    const [totalOrders, ordersToday, ordersYesterday, accountsToday, accountsYesterday] = await Promise.all([
+      Order.countDocuments({ orderType: { $ne: 'account' }, ...(resetAt ? { createdAt: { $gte: resetAt } } : {}) }),
+      Order.countDocuments({ orderType: { $ne: 'account' }, createdAt: { $gte: todayStart, $lt: tomorrowStart } }),
+      Order.countDocuments({ orderType: { $ne: 'account' }, createdAt: { $gte: yesterdayStart, $lt: todayStart } }),
+      // Count accounts sold today (respecting resetAt)
+      Order.countDocuments({ 
+        orderType: 'account', 
+        status: 'Hoàn thành',
+        createdAt: { 
+          $gte: resetAt && resetAt > todayStart ? resetAt : todayStart, 
+          $lt: tomorrowStart 
+        } 
+      }),
+      // Count accounts sold yesterday (respecting resetAt)
+      Order.countDocuments({ 
+        orderType: 'account', 
+        status: 'Hoàn thành',
+        createdAt: { 
+          $gte: resetAt && resetAt > yesterdayStart ? resetAt : yesterdayStart, 
+          $lt: todayStart 
+        } 
+      })
     ]);
 
+    // Calculate account revenue helper function (respecting resetAt)
+    const sumAccountRevenue = async (start, end) => {
+      const match = {
+        orderType: 'account',
+        status: 'Hoàn thành',
+        createdAt: { 
+          $gte: resetAt && resetAt > start ? resetAt : start, 
+          $lt: end 
+        }
+      };
+      const rows = await Order.aggregate([
+        { $match: match },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+      ]);
+      return rows?.[0]?.total || 0;
+    };
+
+    // Calculate total revenue from recharges (respecting resetAt)
     const [totalRevenueAgg] = await Recharge.aggregate([
       { $match: matchBase },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
-    const totalRevenue = totalRevenueAgg?.total || 0;
+    const rechargeRevenue = totalRevenueAgg?.total || 0;
+    
+    // Calculate total account revenue (all time, respecting resetAt)
+    const accountMatchBase = {
+      orderType: 'account',
+      status: 'Hoàn thành',
+      ...(resetAt ? { createdAt: { $gte: resetAt } } : {})
+    };
+    const [totalAccountRevenueAgg] = await Order.aggregate([
+      { $match: accountMatchBase },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const accountRevenue = totalAccountRevenueAgg?.total || 0;
+    
+    // Total revenue includes both recharge and account revenue
+    const totalRevenue = rechargeRevenue + accountRevenue;
 
-    const [revenueToday, revenueYesterday, revenueThisWeek, revenueThisMonth, revenueLastMonth] = await Promise.all([
+    const [rechargeToday, rechargeYesterday, rechargeThisWeek, rechargeThisMonth, rechargeLastMonth, accountRevenueToday, accountRevenueYesterday] = await Promise.all([
       sumRecharge(todayStart, tomorrowStart),
       sumRecharge(yesterdayStart, todayStart),
       sumRecharge(weekStart, tomorrowStart),
       sumRecharge(monthStart, nextMonthStart),
-      sumRecharge(lastMonthStart, monthStart)
+      sumRecharge(lastMonthStart, monthStart),
+      sumAccountRevenue(todayStart, tomorrowStart),
+      sumAccountRevenue(yesterdayStart, todayStart)
     ]);
+
+    // Combine recharge and account revenue for total calculations
+    const revenueToday = rechargeToday + accountRevenueToday;
+    const revenueYesterday = rechargeYesterday + accountRevenueYesterday;
+    // For week/month, we only have recharge data, so use recharge only
+    const revenueThisWeek = rechargeThisWeek;
+    const revenueThisMonth = rechargeThisMonth;
+    const revenueLastMonth = rechargeLastMonth;
 
     // Profit = revenue for now (no costs model)
     res.json({
@@ -392,6 +457,10 @@ router.get('/revenue-stats', authenticateAdmin, async (req, res) => {
       totalRevenue,
       ordersToday,
       ordersYesterday,
+      accountsToday,
+      accountsYesterday,
+      accountRevenueToday,
+      accountRevenueYesterday,
       revenueToday,
       revenueYesterday,
       revenueThisWeek,
@@ -725,6 +794,253 @@ router.delete('/vouchers/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Voucher không tồn tại' });
     }
     res.json({ message: 'Xóa voucher thành công' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ===== Account management =====
+
+// Helper function to generate account code based on game
+const generateAccountCode = async (game) => {
+  const gamePrefixes = {
+    'Anime Crusader': 'AC',
+    'Anime Vanguards': 'AV',
+    'Universal Tower Defense': 'UTD',
+    'The Forge': 'TF'
+  };
+
+  // Get prefix from game name or use first 2 uppercase letters
+  let prefix = gamePrefixes[game] || game.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2);
+  
+  // Find the latest account with this prefix
+  const latestAccount = await Account.findOne({ code: new RegExp(`^${prefix}`) })
+    .sort({ createdAt: -1 });
+  
+  let sequence = 1;
+  if (latestAccount) {
+    // Extract number from code (e.g., AC001234 -> 1234)
+    const match = latestAccount.code.match(/\d+$/);
+    if (match) {
+      sequence = parseInt(match[0]) + 1;
+    }
+  }
+  
+  // Format: PREFIX + 6-digit number (e.g., AC000001)
+  return `${prefix}${sequence.toString().padStart(6, '0')}`;
+};
+
+// Get accounts with pagination, search, and filters
+router.get('/accounts', authenticateAdmin, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 7;
+    const skip = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+    const gameFilter = req.query.game || '';
+    const statusFilter = req.query.status || '';
+
+    const query = {};
+    
+    // Search filter
+    if (search) {
+      query.$or = [
+        { code: { $regex: search, $options: 'i' } },
+        { game: { $regex: search, $options: 'i' } },
+        { username: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Game filter
+    if (gameFilter) {
+      query.game = gameFilter;
+    }
+    
+    // Status filter
+    if (statusFilter) {
+      query.status = statusFilter;
+    }
+
+    const accounts = await Account.find(query)
+      .populate('buyerId', 'username email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Account.countDocuments(query);
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
+      accounts,
+      totalPages,
+      currentPage: page,
+      total
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all games (for dropdown)
+router.get('/accounts/games', authenticateAdmin, async (req, res) => {
+  try {
+    const games = await Account.distinct('game');
+    // Default games
+    const defaultGames = ['Anime Crusader', 'Anime Vanguards', 'Universal Tower Defense', 'The Forge'];
+    const allGames = [...new Set([...defaultGames, ...games])].sort();
+    res.json(allGames);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Create new account
+router.post('/accounts', authenticateAdmin, async (req, res) => {
+  try {
+    const { game, info, image, username, password, originalPrice, discountedPrice } = req.body;
+
+    if (!game || !username || !password || !originalPrice || !discountedPrice) {
+      return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin' });
+    }
+
+    // Generate account code
+    const code = await generateAccountCode(game);
+
+    const account = await Account.create({
+      code,
+      game,
+      info: info || '',
+      image: image || '',
+      username,
+      password,
+      originalPrice: Number(originalPrice),
+      discountedPrice: Number(discountedPrice),
+      status: 'chưa bán'
+    });
+
+    const populatedAccount = await Account.findById(account._id).populate('buyerId', 'username email');
+
+    res.status(201).json(populatedAccount);
+  } catch (error) {
+    if (error.code === 11000) {
+      // Duplicate key error (code already exists)
+      return res.status(400).json({ message: 'Mã số đã tồn tại, vui lòng thử lại' });
+    }
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update account
+router.put('/accounts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { game, info, image, username, password, originalPrice, discountedPrice, status, buyerId } = req.body;
+    
+    const account = await Account.findById(req.params.id);
+    if (!account) {
+      return res.status(404).json({ message: 'Account không tồn tại' });
+    }
+
+    // Update fields
+    if (game !== undefined) account.game = game;
+    if (info !== undefined) account.info = info;
+    if (image !== undefined) account.image = image;
+    if (username !== undefined) account.username = username;
+    if (password !== undefined) account.password = password;
+    if (originalPrice !== undefined) account.originalPrice = Number(originalPrice);
+    if (discountedPrice !== undefined) account.discountedPrice = Number(discountedPrice);
+    if (status !== undefined) account.status = status;
+    if (buyerId !== undefined) account.buyerId = buyerId || null;
+
+    await account.save();
+    const updatedAccount = await Account.findById(account._id).populate('buyerId', 'username email');
+
+    res.json(updatedAccount);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete account - allow deletion even if sold (stats are based on orders, not account records)
+router.delete('/accounts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const account = await Account.findById(req.params.id);
+    if (!account) {
+      return res.status(404).json({ message: 'Account không tồn tại' });
+    }
+    
+    // Allow deletion even if sold - stats are tracked in orders, not account records
+    await Account.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Xóa account thành công' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Game management routes
+// Get all games
+router.get('/games', authenticateAdmin, async (req, res) => {
+  try {
+    const games = await Game.find().sort({ name: 1 });
+    res.json(games);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Create new game
+router.post('/games', authenticateAdmin, async (req, res) => {
+  try {
+    const { name, image } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ message: 'Tên game là bắt buộc' });
+    }
+    
+    const game = await Game.create({
+      name: name.trim(),
+      image: image || ''
+    });
+    
+    res.status(201).json(game);
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Tên game đã tồn tại' });
+    }
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update game
+router.put('/games/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { name, image } = req.body;
+    
+    const game = await Game.findById(req.params.id);
+    if (!game) {
+      return res.status(404).json({ message: 'Game không tồn tại' });
+    }
+    
+    if (name !== undefined) game.name = name.trim();
+    if (image !== undefined) game.image = image;
+    
+    await game.save();
+    res.json(game);
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Tên game đã tồn tại' });
+    }
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete game
+router.delete('/games/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const game = await Game.findByIdAndDelete(req.params.id);
+    if (!game) {
+      return res.status(404).json({ message: 'Game không tồn tại' });
+    }
+    res.json({ message: 'Xóa game thành công' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

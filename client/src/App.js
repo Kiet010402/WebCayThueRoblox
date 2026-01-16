@@ -14,6 +14,7 @@ import Wallet from './pages/Wallet';
 import News from './pages/News';
 import Admin from './pages/Admin';
 import Profile from './pages/Profile';
+import NickRoblox from './pages/NickRoblox';
 import api from './api/axios';
 
 function AppContent({ setUser }) {
@@ -156,6 +157,7 @@ function App() {
           <Route path="/recharge" element={<Recharge />} />
           <Route path="/history" element={<History />} />
           <Route path="/cay-thue" element={<CayThue />} />
+          <Route path="/nick-roblox" element={<NickRoblox />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/news" element={<News />} />
           <Route path="/admin" element={<Admin />} />

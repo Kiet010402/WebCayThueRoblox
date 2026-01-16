@@ -8,7 +8,7 @@ import './Admin.css';
 
 function Admin() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('overview');
   const [users, setUsers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [recharges, setRecharges] = useState([]);
@@ -60,6 +60,41 @@ function Admin() {
   const [newVoucherDiscount, setNewVoucherDiscount] = useState('');
   const [newVoucherExpiry, setNewVoucherExpiry] = useState('');
   const [newVoucherMinAmount, setNewVoucherMinAmount] = useState('');
+  // Account management
+  const [accounts, setAccounts] = useState([]);
+  const [accountsPage, setAccountsPage] = useState(1);
+  const [accountsTotalPages, setAccountsTotalPages] = useState(1);
+  const [accountsSearch, setAccountsSearch] = useState('');
+  const [accountsGameFilter, setAccountsGameFilter] = useState('');
+  const [accountsStatusFilter, setAccountsStatusFilter] = useState('');
+  const [availableGames, setAvailableGames] = useState(['Anime Crusader', 'Anime Vanguards', 'Universal Tower Defense', 'The Forge']);
+  const [newGameInput, setNewGameInput] = useState('');
+  const [showAddGameInput, setShowAddGameInput] = useState(false);
+  // Games management
+  const [games, setGames] = useState([]);
+  const [newGameName, setNewGameName] = useState('');
+  const [newGameImage, setNewGameImage] = useState('');
+  const [editingGame, setEditingGame] = useState(null);
+  const [editGameName, setEditGameName] = useState('');
+  const [editGameImage, setEditGameImage] = useState('');
+  const [newAccountGame, setNewAccountGame] = useState('Anime Crusader');
+  const [newAccountInfo, setNewAccountInfo] = useState('');
+  const [newAccountImage, setNewAccountImage] = useState('');
+  const [newAccountUsername, setNewAccountUsername] = useState('');
+  const [newAccountPassword, setNewAccountPassword] = useState('');
+  const [newAccountOriginalPrice, setNewAccountOriginalPrice] = useState('');
+  const [newAccountDiscountedPrice, setNewAccountDiscountedPrice] = useState('');
+  // Account detail modal
+  const [showAccountDetailModal, setShowAccountDetailModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [editAccountGame, setEditAccountGame] = useState('');
+  const [editAccountInfo, setEditAccountInfo] = useState('');
+  const [editAccountImage, setEditAccountImage] = useState('');
+  const [editAccountUsername, setEditAccountUsername] = useState('');
+  const [editAccountPassword, setEditAccountPassword] = useState('');
+  const [editAccountOriginalPrice, setEditAccountOriginalPrice] = useState('');
+  const [editAccountDiscountedPrice, setEditAccountDiscountedPrice] = useState('');
+  const [editAccountStatus, setEditAccountStatus] = useState('');
 
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -159,6 +194,65 @@ function Admin() {
     }
   }, [activeTab, vouchersPage, voucherStatusFilter]);
 
+  // Fetch games function (defined outside useEffect so it can be used by other handlers)
+  const fetchGames = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
+    if (!token || !adminUser || adminUser.role !== 'admin') return;
+
+    try {
+      const [gamesRes, accountGamesRes] = await Promise.all([
+        api.get('/api/admin/games', {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => ({ data: [] })), // Fallback if endpoint doesn't exist yet
+        api.get('/api/admin/accounts/games', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ]);
+      if (Array.isArray(gamesRes.data)) {
+        setGames(gamesRes.data);
+      }
+      if (Array.isArray(accountGamesRes.data)) {
+        setAvailableGames(accountGamesRes.data);
+      }
+    } catch (error) {
+      console.error('Error fetching games:', error);
+    }
+  }, []);
+
+  // Fetch accounts only when accounts tab is active
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      const token = localStorage.getItem('token');
+      const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
+      if (!token || !adminUser || adminUser.role !== 'admin') return;
+
+      try {
+        const searchParam = accountsSearch ? `&search=${encodeURIComponent(accountsSearch)}` : '';
+        const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
+        const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
+        const res = await api.get(
+          `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+        setAccountsTotalPages(res.data.totalPages || 1);
+      } catch (error) {
+        console.error('Error fetching accounts:', error);
+      }
+    };
+
+    if (activeTab === 'accounts') {
+      fetchAccounts();
+      fetchGames();
+    }
+    if (activeTab === 'games') {
+      fetchGames();
+    }
+  }, [activeTab, accountsPage, accountsSearch, accountsGameFilter, accountsStatusFilter, searchNonce, fetchGames]);
+
   const handleAddBalance = async () => {
     const value = Number(addBalanceAmount);
     if (!Number.isFinite(value) || value <= 0) {
@@ -256,6 +350,249 @@ function Admin() {
       setVouchersTotalPages(res.data.totalPages || 1);
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa voucher');
+    }
+  };
+
+  // Account management handlers
+  const handleAddGame = () => {
+    if (!newGameInput.trim()) {
+      alert('Vui lòng nhập tên game');
+      return;
+    }
+    if (availableGames.includes(newGameInput.trim())) {
+      alert('Game này đã tồn tại');
+      return;
+    }
+    setAvailableGames([...availableGames, newGameInput.trim()]);
+    setNewGameInput('');
+    setShowAddGameInput(false);
+  };
+
+  const handleCreateAccount = async () => {
+    if (!newAccountGame || !newAccountUsername || !newAccountPassword || !newAccountOriginalPrice || !newAccountDiscountedPrice) {
+      alert('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+    const originalPrice = Number(newAccountOriginalPrice);
+    const discountedPrice = Number(newAccountDiscountedPrice);
+    if (!Number.isFinite(originalPrice) || originalPrice <= 0 || !Number.isFinite(discountedPrice) || discountedPrice <= 0) {
+      alert('Giá phải là số dương');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    try {
+      await api.post(
+        '/api/admin/accounts',
+        {
+          game: newAccountGame,
+          info: newAccountInfo,
+          image: newAccountImage,
+          username: newAccountUsername,
+          password: newAccountPassword,
+          originalPrice: originalPrice,
+          discountedPrice: discountedPrice,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      alert('Đăng account thành công!');
+      // Reset form
+      setNewAccountGame('Anime Crusader');
+      setNewAccountInfo('');
+      setNewAccountImage('');
+      setNewAccountUsername('');
+      setNewAccountPassword('');
+      setNewAccountOriginalPrice('');
+      setNewAccountDiscountedPrice('');
+      // Refetch accounts
+      const searchParam = accountsSearch ? `&search=${encodeURIComponent(accountsSearch)}` : '';
+      const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
+      const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
+      const res = await api.get(
+        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+      setAccountsTotalPages(res.data.totalPages || 1);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi đăng account');
+    }
+  };
+
+  const handleShowAccountDetail = (account) => {
+    setSelectedAccount(account);
+    setEditAccountGame(account.game || '');
+    setEditAccountInfo(account.info || '');
+    setEditAccountImage(account.image || '');
+    setEditAccountUsername(account.username || '');
+    setEditAccountPassword(account.password || '');
+    setEditAccountOriginalPrice(account.originalPrice || '');
+    setEditAccountDiscountedPrice(account.discountedPrice || '');
+    setEditAccountStatus(account.status || 'chưa bán');
+    setShowAccountDetailModal(true);
+  };
+
+  const handleUpdateAccount = async () => {
+    if (!selectedAccount) return;
+    const token = localStorage.getItem('token');
+    try {
+      await api.put(`/api/admin/accounts/${selectedAccount._id}`, {
+        game: editAccountGame,
+        info: editAccountInfo,
+        image: editAccountImage,
+        username: editAccountUsername,
+        password: editAccountPassword,
+        originalPrice: editAccountOriginalPrice,
+        discountedPrice: editAccountDiscountedPrice,
+        status: editAccountStatus
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Cập nhật account thành công!');
+      setShowAccountDetailModal(false);
+      // Refetch accounts
+      const searchParam = accountsSearch ? `&search=${encodeURIComponent(accountsSearch)}` : '';
+      const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
+      const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
+      const res = await api.get(
+        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+      setAccountsTotalPages(res.data.totalPages || 1);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật account');
+    }
+  };
+
+  const handleDeleteAccountFromModal = async () => {
+    if (!selectedAccount) return;
+    if (!window.confirm(`Bạn chắc chắn muốn xóa account "${selectedAccount.code}"? Hành động này không thể hoàn tác.`)) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/admin/accounts/${selectedAccount._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Đã xóa account');
+      setShowAccountDetailModal(false);
+      // Refetch accounts
+      const searchParam = accountsSearch ? `&search=${encodeURIComponent(accountsSearch)}` : '';
+      const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
+      const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
+      const res = await api.get(
+        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+      setAccountsTotalPages(res.data.totalPages || 1);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa account');
+    }
+  };
+
+  // eslint-disable-next-line no-unused-vars
+  const handleDeleteAccount = async (accountId, accountCode) => {
+    if (!window.confirm(`Bạn chắc chắn muốn xóa account "${accountCode}"? Hành động này không thể hoàn tác.`)) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/admin/accounts/${accountId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Đã xóa account');
+      // Refetch accounts
+      const searchParam = accountsSearch ? `&search=${encodeURIComponent(accountsSearch)}` : '';
+      const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
+      const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
+      const res = await api.get(
+        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+      setAccountsTotalPages(res.data.totalPages || 1);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa account');
+    }
+  };
+
+  // Game management handlers
+  const handleCreateGame = async () => {
+    if (!newGameName.trim()) {
+      alert('Vui lòng nhập tên game');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.post('/api/admin/games', {
+        name: newGameName.trim(),
+        image: newGameImage.trim()
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Thêm game thành công!');
+      setNewGameName('');
+      setNewGameImage('');
+      fetchGames();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi thêm game');
+    }
+  };
+
+  const handleEditGame = (game) => {
+    setEditingGame(game);
+    setEditGameName(game.name);
+    setEditGameImage(game.image || '');
+  };
+
+  const handleUpdateGame = async () => {
+    if (!editingGame || !editGameName.trim()) {
+      alert('Vui lòng nhập tên game');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.put(`/api/admin/games/${editingGame._id}`, {
+        name: editGameName.trim(),
+        image: editGameImage.trim()
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Cập nhật game thành công!');
+      setEditingGame(null);
+      setEditGameName('');
+      setEditGameImage('');
+      fetchGames();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật game');
+    }
+  };
+
+  const handleDeleteGame = async (gameId) => {
+    if (!window.confirm('Bạn chắc chắn muốn xóa game này?')) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/admin/games/${gameId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Xóa game thành công!');
+      fetchGames();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa game');
     }
   };
 
@@ -512,89 +849,731 @@ function Admin() {
     <div className="admin-container">
       <h1>Quản Lý Hệ Thống</h1>
 
-      {stats && (
-        <div className="stats-grid">
-          <div className="stat-card">
-            <h3>Tổng Users</h3>
-            <p className="stat-value">{stats.totalUsers}</p>
+      <div className="admin-layout">
+        <div className="admin-sidebar">
+          <div 
+            className={`sidebar-item ${activeTab === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveTab('overview')}
+          >
+            <span className="sidebar-icon">📊</span>
+            <span className="sidebar-label">Thông tin hệ thống</span>
           </div>
-          <div className="stat-card">
-            <h3>Tổng Đơn Hàng</h3>
-            <p className="stat-value">{stats.totalOrders}</p>
+          <div 
+            className={`sidebar-item ${activeTab === 'revenue' ? 'active' : ''}`}
+            onClick={() => setActiveTab('revenue')}
+          >
+            <span className="sidebar-icon">💰</span>
+            <span className="sidebar-label">Quản lý Doanh Thu</span>
           </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'vouchers' ? 'active' : ''}`}
+            onClick={() => setActiveTab('vouchers')}
+          >
+            <span className="sidebar-icon">🎫</span>
+            <span className="sidebar-label">Quản lý Voucher</span>
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'accounts' ? 'active' : ''}`}
+            onClick={() => setActiveTab('accounts')}
+          >
+            <span className="sidebar-icon">🎮</span>
+            <span className="sidebar-label">Quản lý Acc</span>
         </div>
-      )}
-
-      <div className="admin-tabs">
-        <button 
-          className={activeTab === 'revenue' ? 'active' : ''}
-          onClick={() => setActiveTab('revenue')}
-        >
-          Quản Lý Doanh Thu
-        </button>
-        <button 
-          className={activeTab === 'vouchers' ? 'active' : ''}
-          onClick={() => setActiveTab('vouchers')}
-        >
-          Quản Lý Voucher
-        </button>
-        <button 
-          className={activeTab === 'announcement' ? 'active' : ''}
-          onClick={() => setActiveTab('announcement')}
-        >
-          Quản Lý Thông Báo
-        </button>
-        <button 
-          className={activeTab === 'pricing' ? 'active' : ''}
-          onClick={() => setActiveTab('pricing')}
-        >
-          Quản Lý Bảng Giá
-        </button>
-        <button 
-          className={activeTab === 'users' ? 'active' : ''}
+          <div 
+            className={`sidebar-item ${activeTab === 'announcement' ? 'active' : ''}`}
+            onClick={() => setActiveTab('announcement')}
+          >
+            <span className="sidebar-icon">📢</span>
+            <span className="sidebar-label">Quản lý Thông Báo</span>
+        </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'pricing' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pricing')}
+          >
+            <span className="sidebar-icon">📋</span>
+            <span className="sidebar-label">Quản lý Bảng Giá</span>
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
           onClick={() => setActiveTab('users')}
         >
-          Quản Lý Users
-        </button>
-        <button 
-          className={activeTab === 'orders' ? 'active' : ''}
+            <span className="sidebar-icon">👥</span>
+            <span className="sidebar-label">Quản lý Users</span>
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'orders' ? 'active' : ''}`}
           onClick={() => setActiveTab('orders')}
           style={{ position: 'relative' }}
         >
-          Quản Lý Đơn Hàng
+            <span className="sidebar-icon">📦</span>
+            <span className="sidebar-label">Quản lý Đơn Hàng</span>
           {pendingOrdersCount > 0 && (
             <span className="notification-badge">{pendingOrdersCount}</span>
           )}
-        </button>
-        <button 
-          className={activeTab === 'recharges' ? 'active' : ''}
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'recharges' ? 'active' : ''}`}
           onClick={() => setActiveTab('recharges')}
           style={{ position: 'relative' }}
         >
-          Quản Lý Nạp Tiền
+            <span className="sidebar-icon">💳</span>
+            <span className="sidebar-label">Quản lý Nạp Tiền</span>
           {pendingRechargesCount > 0 && (
             <span className="notification-badge">{pendingRechargesCount}</span>
           )}
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'news' ? 'active' : ''}`}
+            onClick={() => setActiveTab('news')}
+          >
+            <span className="sidebar-icon">📰</span>
+            <span className="sidebar-label">Quản lý Tin Tức</span>
+          </div>
+        </div>
+
+        <div className="admin-content">
+          {activeTab === 'overview' && (
+            <>
+              {/* VÍ CỦA HỆ THỐNG Section */}
+              <div className="wallet-card">
+                <h2 className="section-title">VÍ CỦA HỆ THỐNG</h2>
+                <div className="balance-summary">
+                  <div className="summary-item">
+                    <div className="summary-label">Tổng Users</div>
+                    <div className="summary-value">{stats?.totalUsers || 0}</div>
+                  </div>
+                  <div className="summary-item">
+                    <div className="summary-label">Tổng Đơn Hàng</div>
+                    <div className="summary-value">{stats?.totalOrders || 0}</div>
+                  </div>
+                  <div className="summary-item">
+                    <div className="summary-label">Đơn đang xử lí</div>
+                    <div className="summary-value">{pendingOrdersCount}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* THÔNG TIN HỆ THỐNG Section */}
+              <div className="profile-card">
+                <div className="profile-header">
+                  <h2 className="section-title">THÔNG TIN HỆ THỐNG</h2>
+                </div>
+                <div className="profile-details">
+                  <div className="detail-item">
+                    <label>Tổng số Users</label>
+                    <input
+                      type="text"
+                      value={stats?.totalUsers || 0}
+                      readOnly
+                    />
+                  </div>
+                  <div className="detail-item">
+                    <label>Tổng số Đơn Hàng</label>
+                    <input
+                      type="text"
+                      value={stats?.totalOrders || 0}
+                      readOnly
+                    />
+                  </div>
+                  <div className="detail-item">
+                    <label>Đơn đang xử lí</label>
+                    <input
+                      type="text"
+                      value={pendingOrdersCount}
+                      readOnly
+                    />
+                  </div>
+                  <div className="detail-item">
+                    <label>Yêu cầu nạp tiền đang xử lí</label>
+                    <input
+                      type="text"
+                      value={pendingRechargesCount}
+                      readOnly
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'accounts' && (
+            <div className="modern-table-container">
+              <div className="table-header-bar">
+                <div className="header-title">
+                  <span className="info-icon">🎮</span>
+                  <span>QUẢN LÝ ACC</span>
+                </div>
+              </div>
+
+              <div className="table-controls">
+                <div className="control-left">
+                  <input
+                    type="text"
+                    className="search-input"
+                    placeholder="Tìm kiếm (mã số, game, tk)..."
+                    value={accountsSearch}
+                    onChange={(e) => setAccountsSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setAccountsPage(1);
+                        setSearchNonce(prev => prev + 1);
+                      }
+                    }}
+                  />
+                  <select
+                    className="status-filter-select"
+                    value={accountsGameFilter}
+                    onChange={(e) => {
+                      setAccountsGameFilter(e.target.value);
+                      setAccountsPage(1);
+                    }}
+                  >
+                    <option value="">Tất cả Game</option>
+                    {availableGames.map((game) => (
+                      <option key={game} value={game}>{game}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="status-filter-select"
+                    value={accountsStatusFilter}
+                    onChange={(e) => {
+                      setAccountsStatusFilter(e.target.value);
+                      setAccountsPage(1);
+                    }}
+                  >
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="chưa bán">Chưa bán</option>
+                    <option value="đã bán">Đã bán</option>
+                  </select>
+                  <button
+                    className="btn-search"
+                    onClick={() => {
+                      setAccountsPage(1);
+                      setSearchNonce(prev => prev + 1);
+                    }}
+                  >
+                    <span className="search-icon">🔍</span>
+                    Tìm kiếm
         </button>
+                  {(accountsSearch || accountsGameFilter || accountsStatusFilter) && (
         <button 
-          className={activeTab === 'news' ? 'active' : ''}
-          onClick={() => setActiveTab('news')}
+                      className="btn-clear-filter"
+                      onClick={() => {
+                        setAccountsSearch('');
+                        setAccountsGameFilter('');
+                        setAccountsStatusFilter('');
+                        setAccountsPage(1);
+                        setSearchNonce(prev => prev + 1);
+                      }}
         >
-          Quản Lý Tin Tức
+                      <span className="trash-icon">🗑️</span>
+                      Xóa bộ lọc
         </button>
+                  )}
+                </div>
       </div>
 
-      {activeTab === 'revenue' && (
-        <RevenueDashboard />
-      )}
+              <div className="profile-card" style={{ marginBottom: '1.5rem' }}>
+                <div className="profile-header">
+                  <h2 className="section-title">Đăng Acc mới</h2>
+                </div>
+                <div className="profile-details">
+                  <div className="detail-column" style={{ maxWidth: '600px' }}>
+                    <div className="detail-item">
+                      <label>Game</label>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <select
+                          value={newAccountGame}
+                          onChange={(e) => setNewAccountGame(e.target.value)}
+                          style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                        >
+                          {availableGames.map((game) => (
+                            <option key={game} value={game}>{game}</option>
+                          ))}
+                        </select>
+                        {!showAddGameInput ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowAddGameInput(true)}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              backgroundColor: '#4CAF50',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.9rem',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            + Thêm game
+                          </button>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flex: 1 }}>
+                            <input
+                              type="text"
+                              value={newGameInput}
+                              onChange={(e) => setNewGameInput(e.target.value)}
+                              placeholder="Tên game mới"
+                              style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleAddGame();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddGame}
+                              style={{
+                                padding: '0.5rem',
+                                backgroundColor: '#2196F3',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAddGameInput(false);
+                                setNewGameInput('');
+                              }}
+                              style={{
+                                padding: '0.5rem',
+                                backgroundColor: '#f44336',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <label>Thông tin</label>
+                      <input
+                        type="text"
+                        value={newAccountInfo}
+                        onChange={(e) => setNewAccountInfo(e.target.value)}
+                        placeholder="Thông tin về acc"
+                      />
+                    </div>
+                    <div className="detail-item">
+                      <label>Image (URL)</label>
+                      <input
+                        type="text"
+                        value={newAccountImage}
+                        onChange={(e) => setNewAccountImage(e.target.value)}
+                        placeholder="https://example.com/image.jpg"
+                      />
+                    </div>
+                    <div className="detail-item">
+                      <label>Tk</label>
+                      <input
+                        type="text"
+                        value={newAccountUsername}
+                        onChange={(e) => setNewAccountUsername(e.target.value)}
+                        placeholder="Username"
+                        required
+                      />
+                    </div>
+                    <div className="detail-item">
+                      <label>Mk</label>
+                      <input
+                        type="text"
+                        value={newAccountPassword}
+                        onChange={(e) => setNewAccountPassword(e.target.value)}
+                        placeholder="Password"
+                        required
+                      />
+                    </div>
+                    <div className="detail-item">
+                      <label>Giá gốc</label>
+                      <input
+                        type="number"
+                        value={newAccountOriginalPrice}
+                        onChange={(e) => setNewAccountOriginalPrice(e.target.value)}
+                        placeholder="Ví dụ: 645000"
+                        required
+                      />
+                    </div>
+                    <div className="detail-item">
+                      <label>Giá đã giảm</label>
+                      <input
+                        type="number"
+                        value={newAccountDiscountedPrice}
+                        onChange={(e) => setNewAccountDiscountedPrice(e.target.value)}
+                        placeholder="Ví dụ: 258000"
+                        required
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-submit"
+                      onClick={handleCreateAccount}
+                      style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }}
+                    >
+                      Đăng Acc
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-      {activeTab === 'announcement' && (
-        <AnnouncementEditor />
-      )}
+              {/* Games Management */}
+              <div className="profile-card" style={{ marginBottom: '1.5rem', marginTop: '2rem' }}>
+                <div className="profile-header">
+                  <h2 className="section-title">Quản lý Games</h2>
+                </div>
+                <div className="profile-details">
+                  <div className="detail-column" style={{ maxWidth: '600px' }}>
+                    <div className="detail-item">
+                      <label>Tên Game</label>
+                      <input
+                        type="text"
+                        value={newGameName}
+                        onChange={(e) => setNewGameName(e.target.value)}
+                        placeholder="Tên game"
+                        style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                      />
+                    </div>
+                    <div className="detail-item">
+                      <label>Link ảnh (URL)</label>
+                      <input
+                        type="text"
+                        value={newGameImage}
+                        onChange={(e) => setNewGameImage(e.target.value)}
+                        placeholder="URL hình ảnh game"
+                        style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                      />
+                      {newGameImage && (
+                        <img src={newGameImage} alt="Preview" style={{ maxWidth: '200px', marginTop: '10px', borderRadius: '4px' }} />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-submit"
+                      onClick={handleCreateGame}
+                      style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }}
+                    >
+                      Thêm Game
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-      {activeTab === 'pricing' && (
-        <PricingManager />
-      )}
+              {/* Games List */}
+              {games.length > 0 && (
+                <div className="profile-card" style={{ marginBottom: '1.5rem' }}>
+                  <div className="profile-header">
+                    <h2 className="section-title">Danh sách Games</h2>
+                  </div>
+                  <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
+                    {games.map((game) => (
+                      <div key={game._id} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '1rem' }}>
+                        {editingGame && editingGame._id === game._id ? (
+                          <div>
+                            <input
+                              type="text"
+                              value={editGameName}
+                              onChange={(e) => setEditGameName(e.target.value)}
+                              style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                            />
+                            <input
+                              type="text"
+                              value={editGameImage}
+                              onChange={(e) => setEditGameImage(e.target.value)}
+                              placeholder="URL ảnh"
+                              style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                            />
+                            {editGameImage && (
+                              <img src={editGameImage} alt="Preview" style={{ width: '100%', marginBottom: '0.5rem', borderRadius: '4px' }} />
+                            )}
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                onClick={handleUpdateGame}
+                                style={{ flex: 1, padding: '0.5rem', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Lưu
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingGame(null);
+                                  setEditGameName('');
+                                  setEditGameImage('');
+                                }}
+                                style={{ flex: 1, padding: '0.5rem', background: '#9E9E9E', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            {game.image && (
+                              <img src={game.image} alt={game.name} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '4px', marginBottom: '0.5rem' }} />
+                            )}
+                            <h3 style={{ margin: '0 0 0.5rem 0' }}>{game.name}</h3>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                onClick={() => handleEditGame(game)}
+                                style={{ flex: 1, padding: '0.5rem', background: '#2196F3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Sửa
+                              </button>
+                              <button
+                                onClick={() => handleDeleteGame(game._id)}
+                                style={{ flex: 1, padding: '0.5rem', background: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="modern-table">
+                <div className="modern-table-header">
+                  <div className="col-date">Ngày</div>
+                  <div className="col-code">Mã Số</div>
+                  <div className="col-game">Game</div>
+                  <div className="col-info">Thông tin</div>
+                  <div className="col-status">Trạng thái</div>
+                  <div className="col-actions">Thao tác</div>
+                </div>
+
+                {accounts.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
+                    Chưa có account nào
+                  </div>
+                ) : (
+                  accounts.map((acc) => (
+                    <div key={acc._id} className="modern-table-row account-row">
+                      <div className="col-date" style={{ whiteSpace: 'nowrap' }}>
+                        {acc.createdAt ? formatDate(acc.createdAt) : 'N/A'}
+                      </div>
+                      <div className="col-code" style={{ fontWeight: '600', color: '#1976D2' }}>{acc.code}</div>
+                      <div className="col-game">{acc.game}</div>
+                      <div className="col-info">{acc.info || '-'}</div>
+                      <div className="col-status">
+                        <span className={`status-badge status-${acc.status === 'chưa bán' ? 'available' : 'sold'}`}>
+                          {acc.status === 'chưa bán' ? 'Chưa bán' : 'Đã bán'}
+                        </span>
+                      </div>
+                      <div className="col-actions">
+                        <button 
+                          className="btn-detail-account"
+                          onClick={() => handleShowAccountDetail(acc)}
+                        >
+                          Chi tiết
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="table-footer">
+                <div className="table-info">
+                  Showing {accounts.length} of {accountsTotalPages * 7} Accounts
+                </div>
+              </div>
+              {accountsTotalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', padding: '1rem' }}>
+                  <button
+                    onClick={() => setAccountsPage((prev) => Math.max(1, prev - 1))}
+                    disabled={accountsPage === 1}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: accountsPage === 1 ? '#ccc' : '#2196F3',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: accountsPage === 1 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    ← Trước
+                  </button>
+                  <span style={{ color: '#666' }}>
+                    Trang {accountsPage} / {accountsTotalPages}
+                  </span>
+                  <button
+                    onClick={() => setAccountsPage((prev) => Math.min(accountsTotalPages, prev + 1))}
+                    disabled={accountsPage === accountsTotalPages}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: accountsPage === accountsTotalPages ? '#ccc' : '#2196F3',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: accountsPage === accountsTotalPages ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Sau →
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Account Detail Modal */}
+          {showAccountDetailModal && selectedAccount && (
+            <div className="modal-overlay" onClick={() => setShowAccountDetailModal(false)}>
+              <div className="modal-content account-detail-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2>Chi tiết Account - {selectedAccount.code}</h2>
+                  <button className="modal-close" onClick={() => setShowAccountDetailModal(false)}>×</button>
+                </div>
+                <div className="modal-body">
+                  <div className="account-detail-form">
+                    <div className="form-group">
+                      <label>Ngày tạo:</label>
+                      <input type="text" value={selectedAccount.createdAt ? formatDate(selectedAccount.createdAt) : 'N/A'} disabled />
+                    </div>
+                    <div className="form-group">
+                      <label>Mã số:</label>
+                      <input type="text" value={selectedAccount.code} disabled />
+                    </div>
+                    <div className="form-group">
+                      <label>Game:</label>
+                      <select 
+                        value={editAccountGame} 
+                        onChange={(e) => setEditAccountGame(e.target.value)}
+                        disabled={selectedAccount.status === 'đã bán'}
+                      >
+                        {availableGames.map(game => (
+                          <option key={game} value={game}>{game}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Thông tin:</label>
+                      <input 
+                        type="text" 
+                        value={editAccountInfo} 
+                        onChange={(e) => setEditAccountInfo(e.target.value)}
+                        placeholder="Thông tin về acc"
+                        disabled={selectedAccount.status === 'đã bán'}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Hình ảnh (URL):</label>
+                      <input 
+                        type="text" 
+                        value={editAccountImage} 
+                        onChange={(e) => setEditAccountImage(e.target.value)}
+                        placeholder="URL hình ảnh"
+                        disabled={selectedAccount.status === 'đã bán'}
+                      />
+                      {editAccountImage && (
+                        <img src={editAccountImage} alt="Account" style={{ maxWidth: '200px', marginTop: '10px', borderRadius: '4px' }} />
+                      )}
+                    </div>
+                    <div className="form-group">
+                      <label>Tk:</label>
+                      <input 
+                        type="text" 
+                        value={editAccountUsername} 
+                        onChange={(e) => setEditAccountUsername(e.target.value)}
+                        placeholder="Tài khoản"
+                        disabled={selectedAccount.status === 'đã bán'}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Mk:</label>
+                      <input 
+                        type="text" 
+                        value={editAccountPassword} 
+                        onChange={(e) => setEditAccountPassword(e.target.value)}
+                        placeholder="Mật khẩu"
+                        disabled={selectedAccount.status === 'đã bán'}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Giá gốc:</label>
+                      <input 
+                        type="number" 
+                        value={editAccountOriginalPrice} 
+                        onChange={(e) => setEditAccountOriginalPrice(e.target.value)}
+                        placeholder="Giá gốc"
+                        disabled={selectedAccount.status === 'đã bán'}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Giá giảm:</label>
+                      <input 
+                        type="number" 
+                        value={editAccountDiscountedPrice} 
+                        onChange={(e) => setEditAccountDiscountedPrice(e.target.value)}
+                        placeholder="Giá sau giảm"
+                        disabled={selectedAccount.status === 'đã bán'}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Trạng thái:</label>
+                      <select 
+                        value={editAccountStatus} 
+                        onChange={(e) => setEditAccountStatus(e.target.value)}
+                        disabled={selectedAccount.status === 'đã bán'}
+                      >
+                        <option value="chưa bán">Chưa bán</option>
+                        <option value="đã bán">Đã bán</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Người mua:</label>
+                      <input 
+                        type="text" 
+                        value={selectedAccount.buyerId ? (selectedAccount.buyerId.username || selectedAccount.buyerId.email || 'N/A') : '-'} 
+                        disabled 
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  {selectedAccount.status !== 'đã bán' && (
+                    <button className="btn-update-account" onClick={handleUpdateAccount}>
+                      Cập nhật
+                    </button>
+                  )}
+                  <button className="btn-delete-account" onClick={handleDeleteAccountFromModal}>
+                    Xóa
+                  </button>
+                  {selectedAccount.status === 'đã bán' && (
+                    <p style={{ color: '#f44336', margin: 0, padding: '0.5rem', fontSize: '0.9rem', flex: 1 }}>
+                      ⚠️ Account đã bán - có thể xóa nhưng thống kê vẫn được lưu
+                    </p>
+                  )}
+                  <button className="btn-cancel-modal" onClick={() => setShowAccountDetailModal(false)}>
+                    Đóng
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'revenue' && (
+            <RevenueDashboard />
+          )}
+
+          {activeTab === 'announcement' && (
+            <AnnouncementEditor />
+          )}
+
+          {activeTab === 'pricing' && (
+            <PricingManager />
+          )}
 
       {activeTab === 'vouchers' && (
         <div className="modern-table-container">
@@ -655,7 +1634,7 @@ function Admin() {
                   />
                 </div>
                 <div className="detail-item">
-                  <label>Áp dụng cho đơn từ (đ)</label>
+                  <label>Áp dụng cho đơn(đ)</label>
                   <input
                     type="number"
                     value={newVoucherMinAmount}
@@ -670,7 +1649,7 @@ function Admin() {
                   style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }}
                 >
                   Lưu voucher
-                </button>
+        </button>
               </div>
             </div>
           </div>
@@ -678,11 +1657,11 @@ function Admin() {
           <div className="modern-table">
             <div className="modern-table-header">
               <div className="col-code">Mã</div>
-              <div className="col-user">Giảm giá</div>
-              <div className="col-amount">Áp dụng từ</div>
+              <div className="col-discount">Giảm giá</div>
+              <div className="col-amount">Áp dụng cho đơn</div>
               <div className="col-date">Hết hạn</div>
               <div className="col-status">Trạng thái</div>
-              <div className="col-actions" style={{ minWidth: '100px' }}>Thao tác</div>
+              <div className="col-actions">Thao tác</div>
             </div>
 
             {vouchers.length === 0 ? (
@@ -691,9 +1670,9 @@ function Admin() {
               </div>
             ) : (
               vouchers.map((v) => (
-                <div key={v._id} className="modern-table-row">
-                  <div className="col-code" style={{ fontWeight: 'bold' }}>{v.code}</div>
-                  <div className="col-user">{v.discount}%</div>
+                <div key={v._id} className="modern-table-row voucher-row">
+                  <div className="col-code">{v.code}</div>
+                  <div className="col-discount">{v.discount}%</div>
                   <div className="col-amount">
                     {v.minOrderAmount ? `${v.minOrderAmount.toLocaleString('vi-VN')}đ` : '0đ'}
                   </div>
@@ -706,24 +1685,9 @@ function Admin() {
                     </span>
                   </div>
                   <div className="col-actions">
-                    <button
+                    <button 
+                      className="btn-delete-voucher"
                       onClick={() => handleDeleteVoucher(v._id, v.code)}
-                      style={{
-                        padding: '0.4rem 0.8rem',
-                        backgroundColor: '#f44336',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        transition: 'all 0.3s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.backgroundColor = '#d32f2f';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = '#f44336';
-                      }}
                     >
                       Xóa
                     </button>
@@ -858,27 +1822,9 @@ function Admin() {
                   <button 
                     className="btn-view-detail"
                     onClick={() => handleViewUserDetails(user._id)}
-                    style={{ marginRight: '0.5rem', padding: '0.5rem 1rem', background: '#2196F3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    style={{ padding: '0.5rem 1rem', background: '#2196F3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                   >
                     Chi Tiết
-                  </button>
-                  <button 
-                    className="btn-add-balance"
-                    onClick={() => {
-                      setSelectedUser(user);
-                      setShowAddBalanceModal(true);
-                        setBalanceMode('add');
-                        setAddBalanceAmount('');
-                    }}
-                  >
-                      ± Tiền
-                    </button>
-                    <button
-                      className="btn-reject"
-                      style={{ marginLeft: '0.5rem' }}
-                      onClick={() => handleDeleteUser(user._id)}
-                    >
-                      Xóa
                   </button>
                 </div>
               </div>
@@ -893,7 +1839,7 @@ function Admin() {
           </div>
           {usersTotalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', padding: '1rem' }}>
-              <button
+                  <button 
                 onClick={() => setUsersPage(prev => Math.max(1, prev - 1))}
                 disabled={usersPage === 1}
                 style={{
@@ -920,11 +1866,11 @@ function Admin() {
                   border: 'none',
                   borderRadius: '4px',
                   cursor: usersPage === usersTotalPages ? 'not-allowed' : 'pointer'
-                }}
-              >
+                    }}
+                  >
                 Sau →
-              </button>
-            </div>
+                  </button>
+                </div>
           )}
         </div>
       )}
@@ -1343,9 +2289,11 @@ function Admin() {
           )}
         </div>
       )}
+        </div>
+      </div>
 
       {showAddBalanceModal && (
-        <div className="modal-overlay" onClick={() => setShowAddBalanceModal(false)}>
+        <div className="modal-overlay" onClick={() => setShowAddBalanceModal(false)} style={{ zIndex: 2000 }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Cộng Tiền Cho User</h2>
             <p><strong>User:</strong> {selectedUser?.username}</p>
@@ -1604,20 +2552,51 @@ function Admin() {
               )}
             </div>
 
-            <div className="modal-actions" style={{ marginTop: '2rem' }}>
-              <button 
-                onClick={() => {
-                  if (userDetails && userDetails._id) {
-                    handleAddVoucher(userDetails);
-                  } else {
-                    alert('Không tìm thấy thông tin user');
-                  }
-                }}
-                className="btn-confirm"
-                style={{ marginRight: '1rem' }}
-              >
-                Thêm Voucher
-              </button>
+            <div className="modal-actions" style={{ marginTop: '2rem', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button 
+                  onClick={() => {
+                    if (userDetails && userDetails._id) {
+                      setSelectedUser(userDetails);
+                      setBalanceMode('add');
+                      setAddBalanceAmount('');
+                      setShowUserDetailModal(false);
+                      setShowAddBalanceModal(true);
+                    } else {
+                      alert('Không tìm thấy thông tin user');
+                    }
+                  }}
+                  className="btn-confirm"
+                  style={{ backgroundColor: '#1976D2' }}
+                >
+                  ± Tiền
+                </button>
+                <button 
+                  onClick={() => {
+                    if (userDetails && userDetails._id) {
+                      handleAddVoucher(userDetails);
+                    } else {
+                      alert('Không tìm thấy thông tin user');
+                    }
+                  }}
+                  className="btn-confirm"
+                >
+                  Thêm Voucher
+                </button>
+                <button 
+                  onClick={() => {
+                    if (userDetails && userDetails._id) {
+                      handleDeleteUser(userDetails._id);
+                      setShowUserDetailModal(false);
+                    } else {
+                      alert('Không tìm thấy thông tin user');
+                    }
+                  }}
+                  className="btn-reject"
+                >
+                  Xóa User
+                </button>
+              </div>
               <button onClick={() => setShowUserDetailModal(false)} className="btn-cancel">Đóng</button>
             </div>
           </div>

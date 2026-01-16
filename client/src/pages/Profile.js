@@ -10,10 +10,13 @@ function Profile() {
   const [loading, setLoading] = useState(true);
   const [activityLogs, setActivityLogs] = useState([]);
   const [balanceHistory, setBalanceHistory] = useState([]);
+  const [accountHistory, setAccountHistory] = useState([]);
   const [activityPage, setActivityPage] = useState(1);
   const [activityTotalPages, setActivityTotalPages] = useState(1);
   const [balancePage, setBalancePage] = useState(1);
   const [balanceTotalPages, setBalanceTotalPages] = useState(1);
+  const [accountPage, setAccountPage] = useState(1);
+  const [accountTotalPages, setAccountTotalPages] = useState(1);
   
   // Change password states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -37,11 +40,13 @@ function Profile() {
       fetchActivityLogs();
     } else if (activeTab === 'balance') {
       fetchBalanceHistory(balancePage, 7);
+    } else if (activeTab === 'account-history') {
+      fetchAccountHistory();
     } else if (activeTab === 'personal') {
       // Fetch all balance history for calculating totals
       fetchBalanceHistory(1, 10000);
     }
-  }, [activeTab, activityPage, balancePage]);
+  }, [activeTab, activityPage, balancePage, accountPage]);
 
   const fetchUserData = async () => {
     const token = localStorage.getItem('token');
@@ -83,6 +88,19 @@ function Profile() {
       setBalanceTotalPages(response.data.totalPages || 1);
     } catch (error) {
       console.error('Error fetching balance history:', error);
+    }
+  };
+
+  const fetchAccountHistory = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await api.get(`/api/users/account-history?page=${accountPage}&limit=5`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAccountHistory(response.data.history || []);
+      setAccountTotalPages(response.data.totalPages || 1);
+    } catch (error) {
+      console.error('Error fetching account history:', error);
     }
   };
 
@@ -180,6 +198,13 @@ function Profile() {
           >
             <span className="sidebar-icon">🔑</span>
             <span>Thay đổi mật khẩu</span>
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'account-history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('account-history')}
+          >
+            <span className="sidebar-icon">🎮</span>
+            <span>Lịch sử mua acc</span>
           </div>
         </div>
 
@@ -410,6 +435,88 @@ function Profile() {
                   Đổi mật khẩu
                 </button>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'account-history' && (
+            <div className="profile-section">
+              <h2 className="section-title">🎮 Lịch sử mua acc</h2>
+              {accountHistory.length === 0 ? (
+                <div className="empty-state">Chưa có lịch sử mua acc nào</div>
+              ) : (
+                <>
+                  <div className="account-history-list">
+                    {accountHistory.map((order) => {
+                      const accountItem = order.items && order.items[0] ? order.items[0] : null;
+                      return (
+                        <div key={order._id} className="account-history-item">
+                          {accountItem ? (
+                            <>
+                              <div className="account-history-image">
+                                {accountItem.image ? (
+                                  <img src={accountItem.image} alt={accountItem.code} />
+                                ) : (
+                                  <div className="account-placeholder">🎮</div>
+                                )}
+                              </div>
+                              <div className="account-history-info">
+                                <div className="account-history-header">
+                                  <h3>{accountItem.name || accountItem.code}</h3>
+                                  <span className="account-code">MS: {accountItem.code}</span>
+                                </div>
+                                <div className="account-history-details">
+                                  <div className="detail-item">
+                                    <label>Game:</label>
+                                    <span>{accountItem.game}</span>
+                                  </div>
+                                  <div className="detail-item">
+                                    <label>Tài khoản:</label>
+                                    <span className="credential">{accountItem.username || 'N/A'}</span>
+                                  </div>
+                                  <div className="detail-item">
+                                    <label>Mật khẩu:</label>
+                                    <span className="credential">{accountItem.password || 'N/A'}</span>
+                                  </div>
+                                  <div className="detail-item">
+                                    <label>Giá:</label>
+                                    <span className="price">{order.totalAmount?.toLocaleString('vi-VN')}₫</span>
+                                  </div>
+                                  <div className="detail-item">
+                                    <label>Ngày mua:</label>
+                                    <span>{formatDate(order.createdAt)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="account-history-info">
+                              <p>Thông tin account không khả dụng</p>
+                              <p>Ngày mua: {formatDate(order.createdAt)}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {accountTotalPages > 1 && (
+                    <div className="pagination">
+                      <button
+                        onClick={() => setAccountPage(prev => Math.max(1, prev - 1))}
+                        disabled={accountPage === 1}
+                      >
+                        ← Trước
+                      </button>
+                      <span>Trang {accountPage} / {accountTotalPages}</span>
+                      <button
+                        onClick={() => setAccountPage(prev => Math.min(accountTotalPages, prev + 1))}
+                        disabled={accountPage === accountTotalPages}
+                      >
+                        Sau →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>

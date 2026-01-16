@@ -113,7 +113,7 @@ function CayThue() {
       }
       
       setSelectedService(newService || null);
-    }
+      }
   };
 
   const handleApplyVoucher = async () => {
@@ -249,9 +249,9 @@ function CayThue() {
       alert(successMsg);
       
       // Reset form
-      setSelectedGame(null);
+    setSelectedGame(null);
       setSelectedCategory(null);
-      setSelectedService(null);
+    setSelectedService(null);
       setFormData({ category: '', service: '', username: '', password: '', backupCode: '', notes: '' });
       setVoucherCode('');
       setAppliedVoucher(null);
@@ -283,13 +283,13 @@ function CayThue() {
             </div>
           ) : (
             games.map((game) => (
-              <div key={game.id} className="game-card" onClick={() => handleGameClick(game)}>
-                {game.badge && <div className="game-badge">{game.badge}</div>}
-                <div className="game-image" style={{ backgroundImage: `url(${game.image})` }}></div>
-                <h3>{game.name}</h3>
-                <p>{game.description}</p>
-                <button className="btn-rent">THUÊ NGAY</button>
-              </div>
+            <div key={game.id} className="game-card" onClick={() => handleGameClick(game)}>
+              {game.badge && <div className="game-badge">{game.badge}</div>}
+              <div className="game-image" style={{ backgroundImage: `url(${game.image})` }}></div>
+              <h3>{game.name}</h3>
+              <p>{game.description}</p>
+              <button className="btn-rent">THUÊ NGAY</button>
+            </div>
             ))
           )}
         </div>

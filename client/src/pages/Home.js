@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Banner from '../components/Banner';
 import TopRanking from '../components/TopRanking';
 import api from '../api/axios';
 import './Home.css';
 
 function Home() {
+  const navigate = useNavigate();
   const [announcement, setAnnouncement] = useState({ title: '', content: '' });
   const [loadingAnnouncement, setLoadingAnnouncement] = useState(true);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [games, setGames] = useState([]);
+  const [loadingGames, setLoadingGames] = useState(true);
 
   useEffect(() => {
     const fetchAnnouncement = async () => {
@@ -33,6 +37,21 @@ function Home() {
         setAnnouncement({ title: 'Thông Báo | Trang Chủ', content: '' });
       })
       .finally(() => setLoadingAnnouncement(false));
+    
+    // Fetch games for display
+    const fetchGames = async () => {
+      try {
+        const res = await api.get('/api/accounts/games-stats');
+        setGames(res.data.games || []);
+      } catch (error) {
+        console.error('Error fetching games:', error);
+        setGames([]);
+      } finally {
+        setLoadingGames(false);
+      }
+    };
+    
+    fetchGames();
   }, []);
 
   const handleCloseModal = () => {
@@ -66,6 +85,52 @@ function Home() {
 
       <Banner />
       <TopRanking />
+
+      {/* Acc Roblox Section */}
+      <div className="games-section">
+        <h2 className="section-title">🎮 Acc Roblox | Trang Chủ</h2>
+        {loadingGames ? (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>Đang tải games...</div>
+        ) : games.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>Chưa có game nào</div>
+        ) : (
+          <div className="games-grid-home">
+            {games.map((game, index) => (
+              <div 
+                key={index} 
+                className="game-card-home"
+              >
+                <div className="game-image-home" style={{ backgroundImage: `url(${game.image})` }}></div>
+                <div className="game-info-home">
+                  <h3>{game.name}</h3>
+                  <div className="game-stats-home">
+                    <div className="stat-item-home">
+                      <span className="stat-label-home">Còn:</span>
+                      <span className="stat-value-home available">{game.available || 0}</span>
+                    </div>
+                    <div className="stat-item-home">
+                      <span className="stat-label-home">Đã bán:</span>
+                      <span className="stat-value-home sold">{game.sold || 0}</span>
+                    </div>
+                  </div>
+                  <button 
+                    className="btn-view-games"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      // Navigate với game state để NickRoblox có thể load ngay
+                      navigate(`/nick-roblox`, { 
+                        state: { selectedGameName: game.name }
+                      });
+                    }}
+                  >
+                    Xem ngay
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="info-section">
         <div className="info-grid">

@@ -404,3 +404,129 @@
   }
 }
 
+/* Account History Styles */
+.account-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.account-history-item {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.account-history-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #2196F3;
+}
+
+.account-history-image {
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-history-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-placeholder {
+  font-size: 4rem;
+  color: #999;
+}
+
+.account-history-info {
+  flex: 1;
+}
+
+.account-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.account-history-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.account-code {
+  background: #f44336;
+  color: white;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.account-history-details {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-item label {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 600;
+}
+
+.detail-item span {
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.detail-item .credential {
+  font-family: 'Courier New', monospace;
+  background: #f5f5f5;
+  padding: 0.5rem;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.detail-item .price {
+  color: #f44336;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .account-history-item {
+    flex-direction: column;
+  }
+
+  .account-history-image {
+    width: 100%;
+    height: 200px;
+  }
+
+  .account-history-details {
+    grid-template-columns: 1fr;
+  }
+}
+

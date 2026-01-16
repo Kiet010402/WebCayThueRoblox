@@ -181,6 +181,107 @@
   line-height: 1.8;
 }
 
+/* Games Section */
+.games-section {
+  margin: 3rem 0;
+}
+
+.games-grid-home {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.game-card-home {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.game-card-home:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(33, 150, 243, 0.2);
+  border-color: #2196F3;
+}
+
+.game-image-home {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.game-info-home {
+  padding: 1.5rem;
+}
+
+.game-info-home h3 {
+  margin: 0 0 1rem 0;
+  color: #333;
+  font-size: 1.3rem;
+}
+
+.game-stats-home {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: #f5f5f5;
+  border-radius: 6px;
+}
+
+.stat-item-home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-label-home {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+
+.stat-value-home {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.stat-value-home.available {
+  color: #4CAF50;
+}
+
+.stat-value-home.sold {
+  color: #f44336;
+}
+
+.btn-view-games {
+  width: 100%;
+  padding: 0.8rem 1.5rem;
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-view-games:hover {
+  background-color: #1976D2;
+  transform: translateY(-2px);
+}
+
 @media (max-width: 768px) {
   .section-title {
     font-size: 1.4rem;
@@ -192,5 +293,10 @@
 
   .info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .games-grid-home {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
   }
 }

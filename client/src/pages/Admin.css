@@ -41,47 +41,20 @@
   color: #2196F3;
 }
 
-.admin-tabs {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  border-bottom: 2px solid #ddd;
-}
-
-.admin-tabs button {
-  padding: 1rem 2rem;
-  background: none;
-  border: none;
-  border-bottom: 3px solid transparent;
-  font-size: 1rem;
-  font-weight: bold;
-  color: #666;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.admin-tabs button:hover {
-  color: #2196F3;
-}
-
-.admin-tabs button.active {
-  color: #2196F3;
-  border-bottom-color: #2196F3;
-}
 
 .notification-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: 8px;
+  right: 8px;
   background-color: #f44336;
   color: white;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: bold;
   border: 2px solid white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -499,6 +472,10 @@
 
 .modern-table {
   border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: white;
 }
 
 .modern-table-header {
@@ -506,7 +483,7 @@
   background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
   color: white;
   font-weight: bold;
-  padding: 1rem;
+  padding: 1.2rem 1rem;
   gap: 1rem;
   align-items: center;
 }
@@ -517,9 +494,21 @@
   grid-template-columns: 50px 1.5fr 2fr 1fr 1fr 1.5fr;
 }
 
+/* Vouchers table: code + discount + minAmount + expiresAt + status + action */
+.modern-table-container:has(.col-discount) .modern-table-header,
+.modern-table-container:has(.col-discount) .modern-table-row {
+  grid-template-columns: 1.5fr 1fr 1.5fr 1.8fr 1.2fr 1fr;
+}
+
+/* Accounts table: date + code + game + info + status + action */
+.modern-table-container:has(.col-game):has(.col-info):not(:has(.col-username)) .modern-table-header,
+.modern-table-container:has(.col-game):has(.col-info):not(:has(.col-username)) .modern-table-row.account-row {
+  grid-template-columns: 1.2fr 1fr 1.5fr 2fr 1fr 1fr !important;
+}
+
 /* Orders table: checkbox + date + code + user + order + amount + status + action */
-.modern-table-container:has(.col-code) .modern-table-header,
-.modern-table-container:has(.col-code) .modern-table-row {
+.modern-table-container:has(.col-code):not(:has(.col-discount)) .modern-table-header,
+.modern-table-container:has(.col-code):not(:has(.col-discount)) .modern-table-row {
   grid-template-columns: 50px 1.2fr 1fr 1.5fr 2fr 1.2fr 1.5fr 1fr;
 }
 
@@ -536,24 +525,32 @@
 .modern-table-header .col-role,
 .modern-table-header .col-date,
 .modern-table-header .col-code,
+.modern-table-header .col-discount,
+.modern-table-header .col-game,
+.modern-table-header .col-info,
+.modern-table-header .col-password,
+.modern-table-header .col-buyer,
 .modern-table-header .col-user,
 .modern-table-header .col-order,
 .modern-table-header .col-amount,
 .modern-table-header .col-method,
 .modern-table-header .col-bill,
 .modern-table-header .col-status,
+.modern-table-header .col-actions,
 .modern-table-header .col-action {
   color: white !important;
+  font-weight: 600;
+  font-size: 0.95rem;
 }
 
 .modern-table-row {
   display: grid;
-  padding: 1rem;
+  padding: 1.2rem 1rem;
   gap: 1rem;
   align-items: center;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e8e8e8;
   background: white;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .modern-table-row:hover {
@@ -575,11 +572,315 @@
   cursor: pointer;
 }
 
+/* Căn phải cột Số Dư để thẳng hàng với header */
+.modern-table-header .col-balance,
+.modern-table-row .col-balance {
+  justify-content: flex-end;
+}
+
 /* Set black color for date, order code, and amount in table rows (not header) */
 .modern-table-row .col-date,
 .modern-table-row .col-code,
+.modern-table-row .col-discount,
+.modern-table-row .col-game,
+.modern-table-row .col-info,
+.modern-table-row .col-username,
+.modern-table-row .col-password,
+.modern-table-row .col-buyer,
 .modern-table-row .col-amount {
   color: black !important;
+}
+
+/* Ensure date displays on one line */
+.modern-table-row .col-date {
+  white-space: nowrap;
+}
+
+/* Voucher table specific styling */
+.modern-table-row .col-code {
+  font-weight: 600;
+  color: #1976D2 !important;
+  font-size: 0.95rem;
+}
+
+.modern-table-row .col-discount {
+  font-weight: 600;
+  color: #4CAF50 !important;
+  font-size: 0.95rem;
+}
+
+.modern-table-row .col-amount {
+  font-weight: 500;
+  color: #FF9800 !important;
+}
+
+.modern-table-row .col-date {
+  color: #666 !important;
+  font-size: 0.9rem;
+}
+
+.modern-table-row .col-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Voucher status badges */
+.status-badge.status-active {
+  background: #4CAF50;
+  color: white;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-badge.status-expired {
+  background: #9E9E9E;
+  color: white;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+/* Voucher delete button */
+.btn-delete-voucher {
+  padding: 0.5rem 1rem;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(244, 67, 54, 0.2);
+}
+
+.btn-delete-voucher:hover {
+  background-color: #d32f2f;
+  box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-delete-voucher:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(244, 67, 54, 0.2);
+}
+
+/* Voucher row hover effect */
+.voucher-row:hover {
+  background: #f8f9fa !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Account status badges */
+.status-badge.status-available {
+  background: #4CAF50;
+  color: white;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-badge.status-sold {
+  background: #9E9E9E;
+  color: white;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+/* Account row hover effect */
+.account-row:hover {
+  background: #f8f9fa !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Account detail button */
+.btn-detail-account {
+  padding: 0.5rem 1rem;
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.2);
+}
+
+.btn-detail-account:hover {
+  background-color: #1976D2;
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-detail-account:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(33, 150, 243, 0.2);
+}
+
+/* Account detail modal */
+.account-detail-modal {
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.modal-close:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.modal-body {
+  margin-bottom: 1.5rem;
+}
+
+.account-detail-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.account-detail-form .form-group {
+  margin: 0;
+}
+
+.account-detail-form .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.account-detail-form .form-group input,
+.account-detail-form .form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  transition: border-color 0.3s ease;
+}
+
+.account-detail-form .form-group input:focus,
+.account-detail-form .form-group select:focus {
+  outline: none;
+  border-color: #2196F3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+}
+
+.account-detail-form .form-group input:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+  color: #666;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.btn-update-account {
+  padding: 0.75rem 1.5rem;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.2);
+}
+
+.btn-update-account:hover {
+  background-color: #45a049;
+  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-delete-account {
+  padding: 0.75rem 1.5rem;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(244, 67, 54, 0.2);
+}
+
+.btn-delete-account:hover {
+  background-color: #d32f2f;
+  box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-cancel-modal {
+  padding: 0.75rem 1.5rem;
+  background-color: #9E9E9E;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(158, 158, 158, 0.2);
+}
+
+.btn-cancel-modal:hover {
+  background-color: #757575;
+  box-shadow: 0 4px 8px rgba(158, 158, 158, 0.3);
+  transform: translateY(-1px);
 }
 
 .table-footer {
@@ -602,5 +903,190 @@
   color: #999;
   background: #f5f5f5;
   border-radius: 8px;
+}
+
+/* Admin Layout */
+.admin-layout {
+  display: flex;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.admin-sidebar {
+  width: 250px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 1rem 0;
+  border: 1px solid #e0e0e0;
+  height: fit-content;
+}
+
+.admin-sidebar .sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #666;
+  border-left: 3px solid transparent;
+  position: relative;
+}
+
+.admin-sidebar .sidebar-item:hover {
+  background: #e8e8e8;
+  color: #2196F3;
+}
+
+.admin-sidebar .sidebar-item.active {
+  background: #2196F3;
+  color: white;
+  border-left-color: #1976D2;
+  font-weight: bold;
+}
+
+.admin-sidebar .sidebar-icon {
+  font-size: 1.2rem;
+}
+
+.admin-sidebar .sidebar-label {
+  white-space: nowrap;
+}
+
+.admin-content {
+  flex: 1;
+}
+
+.wallet-card {
+  background: white;
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  border: 1px solid #e0e0e0;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  color: #333;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 3px solid #2196F3;
+  display: inline-block;
+}
+
+.current-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, #26A69A 0%, #00897B 100%);
+  border-radius: 8px;
+  color: white;
+}
+
+.balance-label {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.9;
+}
+
+.balance-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.balance-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.summary-label {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.summary-value {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #2196F3;
+}
+
+.profile-card {
+  background: white;
+  border-radius: 8px;
+  padding: 2rem;
+  border: 1px solid #e0e0e0;
+}
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.profile-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.detail-item {
+  margin-bottom: 1.5rem;
+}
+
+.detail-item label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #666;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.detail-item input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: #f5f5f5;
+  color: #333;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .admin-layout {
+    flex-direction: column;
+  }
+
+  .admin-sidebar {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .admin-sidebar .sidebar-item {
+    white-space: nowrap;
+  }
+
+  .profile-details {
+    grid-template-columns: 1fr;
+  }
+
+  .balance-summary {
+    grid-template-columns: 1fr;
+  }
 }
 

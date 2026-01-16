@@ -3,6 +3,8 @@ const router = express.Router();
 const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
 const BalanceHistory = require('../models/BalanceHistory');
+const Order = require('../models/Order');
+const Account = require('../models/Account');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
@@ -226,6 +228,50 @@ router.put('/change-password', async (req, res) => {
     await user.save();
 
     res.json({ message: 'Đổi mật khẩu thành công' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get account purchase history
+router.get('/account-history', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Token không tồn tại' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+    const skip = (page - 1) * limit;
+
+    // Get orders of type 'account'
+    const [orders, total] = await Promise.all([
+      Order.find({ 
+        userId: decoded.userId,
+        orderType: 'account'
+      })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Order.countDocuments({ 
+        userId: decoded.userId,
+        orderType: 'account'
+      })
+    ]);
+
+    // Return orders directly - all account info is already saved in items
+    // No need to fetch from Account model, so history persists even if account is deleted
+    res.json({
+      history: orders,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

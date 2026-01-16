@@ -12,6 +12,7 @@ function Navbar({ user, onLogout }) {
         <ul className="navbar-menu">
           <li><Link to="/">Trang Chủ</Link></li>
           <li><Link to="/cay-thue">Cày Thuê</Link></li>
+          <li><Link to="/nick-roblox">Nick Roblox</Link></li>
           <li><Link to="/history">Lịch Sử</Link></li>
           <li><Link to="/recharge">Nạp Tiền</Link></li>
           <li><Link to="/wallet">Dùng Tiền</Link></li>
