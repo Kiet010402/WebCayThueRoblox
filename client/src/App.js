@@ -15,6 +15,7 @@ import News from './pages/News';
 import Admin from './pages/Admin';
 import Profile from './pages/Profile';
 import NickRoblox from './pages/NickRoblox';
+import Chat from './components/Chat';
 import api from './api/axios';
 
 function AppContent({ setUser }) {
@@ -147,6 +148,7 @@ function App() {
     <HashRouter>
       <AppContent setUser={setUser} user={user} />
       <Navbar user={user} onLogout={handleLogout} />
+      <Chat user={user} />
       <div className="app-container">
         <Routes>
           <Route path="/" element={<Home />} />

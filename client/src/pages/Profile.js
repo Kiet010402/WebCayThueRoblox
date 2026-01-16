@@ -244,7 +244,7 @@ function Profile() {
                 <div className="profile-header">
                   <h2 className="section-title">Hồ sơ của bạn</h2>
                   <div className="profile-header-actions">
-                    <button className="btn-edit">Chỉnh sửa thông tin</button>
+                  <button className="btn-edit">Chỉnh sửa thông tin</button>
                     <button className="btn-logout-profile" onClick={handleLogout}>Đăng Xuất</button>
                   </div>
                 </div>
@@ -311,21 +311,21 @@ function Profile() {
                 </div>
               </div>
               <div className="activity-table-wrapper">
-                <div className="activity-table">
-                  <div className="table-header">
-                    <div className="col-time">Thời gian</div>
-                    <div className="col-action">Thao tác</div>
-                  </div>
-                  {activityLogs.length === 0 ? (
-                    <div className="empty-state">Chưa có hoạt động nào</div>
-                  ) : (
-                    activityLogs.map(log => (
-                      <div key={log._id} className="table-row">
-                        <div className="col-time">{formatDate(log.createdAt)}</div>
-                        <div className="col-action">{log.action}</div>
-                      </div>
-                    ))
-                  )}
+              <div className="activity-table">
+                <div className="table-header">
+                  <div className="col-time">Thời gian</div>
+                  <div className="col-action">Thao tác</div>
+                </div>
+                {activityLogs.length === 0 ? (
+                  <div className="empty-state">Chưa có hoạt động nào</div>
+                ) : (
+                  activityLogs.map(log => (
+                    <div key={log._id} className="table-row">
+                      <div className="col-time">{formatDate(log.createdAt)}</div>
+                      <div className="col-action">{log.action}</div>
+                    </div>
+                  ))
+                )}
                 </div>
               </div>
               {activityTotalPages > 1 && (
@@ -369,29 +369,29 @@ function Profile() {
                 </div>
               </div>
               <div className="balance-table-wrapper">
-                <div className="balance-table">
-                  <div className="table-header">
-                    <div className="col-time">Thời gian</div>
-                    <div className="col-initial">Số dư ban đầu</div>
-                    <div className="col-change">Số dư thay đổi</div>
-                    <div className="col-current">Số dư hiện tại</div>
-                    <div className="col-reason">Lý do</div>
-                  </div>
-                  {balanceHistory.length === 0 ? (
-                    <div className="empty-state">Chưa có lịch sử biến động</div>
-                  ) : (
-                    balanceHistory.map(item => (
-                      <div key={item._id} className="table-row">
-                        <div className="col-time">{formatDate(item.createdAt)}</div>
-                        <div className="col-initial">{item.initialBalance?.toLocaleString('vi-VN') || '0'}₫</div>
-                        <div className={`col-change ${item.changeAmount >= 0 ? 'positive' : 'negative'}`}>
-                          {item.changeAmount >= 0 ? '+' : ''}{item.changeAmount?.toLocaleString('vi-VN') || '0'}₫
-                        </div>
-                        <div className="col-current">{item.currentBalance?.toLocaleString('vi-VN') || '0'}₫</div>
-                        <div className="col-reason">{item.reason}</div>
+              <div className="balance-table">
+                <div className="table-header">
+                  <div className="col-time">Thời gian</div>
+                  <div className="col-initial">Số dư ban đầu</div>
+                  <div className="col-change">Số dư thay đổi</div>
+                  <div className="col-current">Số dư hiện tại</div>
+                  <div className="col-reason">Lý do</div>
+                </div>
+                {balanceHistory.length === 0 ? (
+                  <div className="empty-state">Chưa có lịch sử biến động</div>
+                ) : (
+                  balanceHistory.map(item => (
+                    <div key={item._id} className="table-row">
+                      <div className="col-time">{formatDate(item.createdAt)}</div>
+                      <div className="col-initial">{item.initialBalance?.toLocaleString('vi-VN') || '0'}₫</div>
+                      <div className={`col-change ${item.changeAmount >= 0 ? 'positive' : 'negative'}`}>
+                        {item.changeAmount >= 0 ? '+' : ''}{item.changeAmount?.toLocaleString('vi-VN') || '0'}₫
                       </div>
-                    ))
-                  )}
+                      <div className="col-current">{item.currentBalance?.toLocaleString('vi-VN') || '0'}₫</div>
+                      <div className="col-reason">{item.reason}</div>
+                    </div>
+                  ))
+                )}
                 </div>
               </div>
               {balanceTotalPages > 1 && (

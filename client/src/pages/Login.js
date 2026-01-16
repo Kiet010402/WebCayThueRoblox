@@ -8,6 +8,13 @@ function Login({ setUser }) {
     username: '',
     password: ''
   });
+  const [forgotPasswordData, setForgotPasswordData] = useState({
+    email: '',
+    code: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [step, setStep] = useState('login'); // 'login', 'forgot', 'reset'
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,6 +23,15 @@ function Login({ setUser }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    setError('');
+  };
+
+  const handleForgotPasswordChange = (e) => {
+    const { name, value } = e.target;
+    setForgotPasswordData(prev => ({
       ...prev,
       [name]: value
     }));
@@ -70,47 +86,288 @@ function Login({ setUser }) {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    
+    if (!forgotPasswordData.email.trim()) {
+      setError('❌ Vui lòng nhập email');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const response = await api.post('/api/users/forgot-password', {
+        email: forgotPasswordData.email
+      });
+
+      // If code is returned (development mode), show it and auto-fill
+      if (response.data.code) {
+        setForgotPasswordData(prev => ({
+          ...prev,
+          code: response.data.code
+        }));
+        setSuccess(`✅ ${response.data.message}\n\n🔑 Mã xác nhận:\n${response.data.code}`);
+      } else {
+        setSuccess('✅ ' + response.data.message);
+      }
+      setStep('reset');
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Không thể gửi mã xác nhận. Vui lòng thử lại sau!';
+      setError('❌ ' + errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    
+    if (!forgotPasswordData.code.trim()) {
+      setError('❌ Vui lòng nhập mã xác nhận');
+      return;
+    }
+    if (!forgotPasswordData.newPassword.trim()) {
+      setError('❌ Vui lòng nhập mật khẩu mới');
+      return;
+    }
+    if (forgotPasswordData.newPassword.length < 6) {
+      setError('❌ Mật khẩu mới phải có ít nhất 6 ký tự');
+      return;
+    }
+    if (forgotPasswordData.newPassword !== forgotPasswordData.confirmPassword) {
+      setError('❌ Mật khẩu xác nhận không khớp');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const response = await api.post('/api/users/reset-password', {
+        email: forgotPasswordData.email,
+        code: forgotPasswordData.code,
+        newPassword: forgotPasswordData.newPassword,
+        confirmPassword: forgotPasswordData.confirmPassword
+      });
+
+      setSuccess('✅ ' + response.data.message);
+      setTimeout(() => {
+        setStep('login');
+        setForgotPasswordData({
+          email: '',
+          code: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+        setSuccess('');
+      }, 2000);
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Không thể đặt lại mật khẩu. Vui lòng thử lại!';
+      setError('❌ ' + errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-container">
       <div className="auth-form">
-        <h1>🔐 ĐĂNG NHẬP</h1>
-        
-        {error && <div className="error-message">{error}</div>}
-        {success && <div className="success-message">{success}</div>}
-        
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>👤 Tên Đăng Nhập:</label>
-            <input 
-              type="text" 
-              name="username"
-              placeholder="Nhập tên đăng nhập"
-              value={formData.username}
-              onChange={handleChange}
-              required
-            />
-          </div>
+        {step === 'login' && (
+          <>
+            <h1>🔐 ĐĂNG NHẬP</h1>
+            
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
+            
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label>👤 Tên Đăng Nhập:</label>
+                <input 
+                  type="text" 
+                  name="username"
+                  placeholder="Nhập tên đăng nhập"
+                  value={formData.username}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
 
-          <div className="form-group">
-            <label>🔐 Mật Khẩu:</label>
-            <input 
-              type="password" 
-              name="password"
-              placeholder="Nhập mật khẩu"
-              value={formData.password}
-              onChange={handleChange}
-              required
-            />
-          </div>
+              <div className="form-group">
+                <label>🔐 Mật Khẩu:</label>
+                <input 
+                  type="password" 
+                  name="password"
+                  placeholder="Nhập mật khẩu"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
 
-          <button type="submit" className="submit-btn" disabled={loading}>
-            {loading ? '⏳ Đang xử lý...' : '✅ ĐĂNG NHẬP'}
-          </button>
-        </form>
+              <button type="submit" className="submit-btn" disabled={loading}>
+                {loading ? '⏳ Đang xử lý...' : '✅ ĐĂNG NHẬP'}
+              </button>
+            </form>
 
-        <div className="auth-footer">
-          <p>Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link></p>
-        </div>
+            <div className="auth-footer">
+              <p>Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link></p>
+              <p style={{ marginTop: '0.5rem' }}>
+                <a 
+                  href="#" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setStep('forgot');
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="forgot-password-link"
+                >
+                  Quên mật khẩu?
+                </a>
+              </p>
+            </div>
+          </>
+        )}
+
+        {step === 'forgot' && (
+          <>
+            <h1>🔑 QUÊN MẬT KHẨU</h1>
+            
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
+            
+            <form onSubmit={handleForgotPassword}>
+              <div className="form-group">
+                <label>📧 Email:</label>
+                <input 
+                  type="email" 
+                  name="email"
+                  placeholder="Nhập email đã đăng ký"
+                  value={forgotPasswordData.email}
+                  onChange={handleForgotPasswordChange}
+                  required
+                />
+              </div>
+
+              <button type="submit" className="submit-btn" disabled={loading}>
+                {loading ? '⏳ Đang gửi...' : '✅ GỬI MÃ XÁC NHẬN'}
+              </button>
+            </form>
+
+            <div className="auth-footer">
+              <p>
+                <a 
+                  href="#" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setStep('login');
+                    setError('');
+                    setSuccess('');
+                    setForgotPasswordData({
+                      email: '',
+                      code: '',
+                      newPassword: '',
+                      confirmPassword: ''
+                    });
+                  }}
+                  className="forgot-password-link"
+                >
+                  ← Quay lại đăng nhập
+                </a>
+              </p>
+            </div>
+          </>
+        )}
+
+        {step === 'reset' && (
+          <>
+            <h1>🔐 ĐẶT LẠI MẬT KHẨU</h1>
+            
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
+            
+            <form onSubmit={handleResetPassword}>
+              <div className="form-group">
+                <label>📧 Email:</label>
+                <input 
+                  type="email" 
+                  name="email"
+                  value={forgotPasswordData.email}
+                  disabled
+                  className="disabled-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>🔢 Mã Xác Nhận (6 số):</label>
+                <input 
+                  type="text" 
+                  name="code"
+                  placeholder="Nhập mã xác nhận từ email"
+                  value={forgotPasswordData.code}
+                  onChange={handleForgotPasswordChange}
+                  maxLength={6}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>🔐 Mật Khẩu Mới:</label>
+                <input 
+                  type="password" 
+                  name="newPassword"
+                  placeholder="Nhập mật khẩu mới (6+ ký tự)"
+                  value={forgotPasswordData.newPassword}
+                  onChange={handleForgotPasswordChange}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>🔐 Xác Nhận Mật Khẩu:</label>
+                <input 
+                  type="password" 
+                  name="confirmPassword"
+                  placeholder="Nhập lại mật khẩu mới"
+                  value={forgotPasswordData.confirmPassword}
+                  onChange={handleForgotPasswordChange}
+                  required
+                />
+              </div>
+
+              <button type="submit" className="submit-btn" disabled={loading}>
+                {loading ? '⏳ Đang xử lý...' : '✅ ĐẶT LẠI MẬT KHẨU'}
+              </button>
+            </form>
+
+            <div className="auth-footer">
+              <p>
+                <a 
+                  href="#" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setStep('forgot');
+                    setForgotPasswordData(prev => ({
+                      ...prev,
+                      code: '',
+                      newPassword: '',
+                      confirmPassword: ''
+                    }));
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="forgot-password-link"
+                >
+                  ← Quay lại
+                </a>
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

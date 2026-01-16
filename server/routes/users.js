@@ -7,6 +7,7 @@ const Order = require('../models/Order');
 const Account = require('../models/Account');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
 
 // Register
 router.post('/register', async (req, res) => {
@@ -229,6 +230,180 @@ router.put('/change-password', async (req, res) => {
 
     res.json({ message: 'Đổi mật khẩu thành công' });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Configure nodemailer transporter
+let transporter = null;
+
+// Only create transporter if email config exists
+if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+  transporter = nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE || 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD
+    }
+  });
+}
+
+// Forgot password - Send reset code via email
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    if (!email) {
+      return res.status(400).json({ message: 'Vui lòng nhập email' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // For security, don't reveal if email exists
+      return res.json({ message: 'Nếu email tồn tại, mã xác nhận đã được gửi' });
+    }
+
+    // Generate 6-digit code
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Save code and expiry (10 minutes)
+    user.resetPasswordCode = resetCode;
+    user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    // Check if email service is properly configured (not placeholder values)
+    const isEmailConfigured = transporter && 
+                              process.env.EMAIL_USER && 
+                              process.env.EMAIL_PASSWORD &&
+                              process.env.EMAIL_USER !== 'your_email@gmail.com' &&
+                              process.env.EMAIL_PASSWORD !== 'your_app_password';
+
+    if (!isEmailConfigured) {
+      // For development: log the code to console
+      console.log('========================================');
+      console.log('RESET PASSWORD CODE (Development Mode):');
+      console.log(`Email: ${email}`);
+      console.log(`Code: ${resetCode}`);
+      console.log('========================================');
+      
+      // Return success with code in response for development
+      return res.json({ 
+        message: 'Mã xác nhận đã được tạo (Email chưa được cấu hình - xem console)',
+        code: resetCode,
+        devMode: true
+      });
+    }
+
+    // Send email
+    try {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Mã xác nhận đặt lại mật khẩu - WebCayThueRoblox',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2196F3;">Đặt lại mật khẩu</h2>
+            <p>Xin chào <strong>${user.username}</strong>,</p>
+            <p>Bạn đã yêu cầu đặt lại mật khẩu. Sử dụng mã xác nhận sau để đặt lại mật khẩu:</p>
+            <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+              <h1 style="color: #2196F3; font-size: 32px; margin: 0; letter-spacing: 8px;">${resetCode}</h1>
+            </div>
+            <p><strong>Lưu ý:</strong> Mã này sẽ hết hạn sau 10 phút.</p>
+            <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="color: #999; font-size: 12px;">Email này được gửi tự động, vui lòng không trả lời.</p>
+          </div>
+        `
+      };
+
+      await transporter.sendMail(mailOptions);
+      res.json({ message: 'Mã xác nhận đã được gửi đến email của bạn' });
+    } catch (emailError) {
+      console.error('Email sending error:', emailError);
+      // Clear the code if email fails
+      user.resetPasswordCode = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save();
+      
+      // In development, still return the code
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('========================================');
+        console.log('RESET PASSWORD CODE (Email failed):');
+        console.log(`Email: ${email}`);
+        console.log(`Code: ${resetCode}`);
+        console.log('========================================');
+        return res.json({ 
+          message: 'Không thể gửi email. Mã xác nhận (xem console):',
+          code: resetCode, // Remove this in production!
+          devMode: true,
+          error: emailError.message
+        });
+      }
+      
+      return res.status(500).json({ message: 'Không thể gửi email. Vui lòng thử lại sau.' });
+    }
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Reset password - Verify code and set new password
+router.post('/reset-password', async (req, res) => {
+  const { email, code, newPassword, confirmPassword } = req.body;
+
+  try {
+    if (!email || !code || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'Mật khẩu mới không khớp' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Mật khẩu mới phải có ít nhất 6 ký tự' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'Email không tồn tại' });
+    }
+
+    // Check if code exists and is valid
+    if (!user.resetPasswordCode || !user.resetPasswordExpires) {
+      return res.status(400).json({ message: 'Mã xác nhận không hợp lệ hoặc đã hết hạn' });
+    }
+
+    // Check if code matches
+    if (user.resetPasswordCode !== code) {
+      return res.status(400).json({ message: 'Mã xác nhận không chính xác' });
+    }
+
+    // Check if code is expired
+    if (new Date() > user.resetPasswordExpires) {
+      user.resetPasswordCode = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save();
+      return res.status(400).json({ message: 'Mã xác nhận đã hết hạn. Vui lòng yêu cầu mã mới' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.resetPasswordCode = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    // Log activity
+    await ActivityLog.create({
+      userId: user._id,
+      action: '[Warning] Thực hiện đặt lại mật khẩu',
+      ipAddress: req.ip || req.connection.remoteAddress
+    });
+
+    res.json({ message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại' });
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ message: error.message });
   }
 });
