@@ -281,6 +281,58 @@ async function getOAuth2AccessToken() {
   }
 }
 
+// Send email using Gmail API directly (bypasses SMTP, works on Render.com)
+async function sendEmailViaGmailAPI(mailOptions) {
+  const { google } = require('googleapis');
+  
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID.trim(),
+    process.env.GMAIL_CLIENT_SECRET.trim(),
+    'http://localhost:3000'
+  );
+  
+  oauth2Client.setCredentials({
+    refresh_token: process.env.GMAIL_REFRESH_TOKEN.trim()
+  });
+  
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  
+  // Create email message in RFC 2822 format
+  const message = [
+    `From: ${mailOptions.from}`,
+    `To: ${mailOptions.to}`,
+    `Subject: ${mailOptions.subject}`,
+    `Content-Type: text/html; charset=utf-8`,
+    '',
+    mailOptions.html
+  ].join('\n');
+  
+  // Encode message in base64url format
+  const encodedMessage = Buffer.from(message)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  
+  try {
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedMessage
+      }
+    });
+    
+    console.log('Email sent via Gmail API successfully. Message ID:', response.data.id);
+    return true;
+  } catch (error) {
+    console.error('Gmail API error:', error.message);
+    if (error.response) {
+      console.error('Gmail API error details:', error.response.data);
+    }
+    throw error;
+  }
+}
+
 // Get or create transporter (ensures it's ready before use)
 async function getTransporter() {
   const emailService = process.env.EMAIL_SERVICE || 'gmail';
@@ -345,8 +397,8 @@ if (process.env.EMAIL_USER) {
   if (emailService.toLowerCase() === 'gmail' && useOAuth2) {
     // Use OAuth2 (recommended for production)
     // Don't verify on startup, will create transporter on demand with fresh token
-    console.log('OAuth2 email configuration detected - transporter will be created on demand');
-    console.log('Using OAuth2 for Gmail - will connect via SMTP with OAuth2 authentication');
+    console.log('OAuth2 email configuration detected - will use Gmail API directly (bypasses SMTP)');
+    console.log('This method works on Render.com and other cloud platforms that block SMTP');
     // Transporter will be created in getTransporter() function when needed
   } else if (emailService.toLowerCase() === 'gmail' && process.env.EMAIL_PASSWORD) {
     // Fallback to App Password (for backward compatibility)
@@ -492,30 +544,32 @@ router.post('/forgot-password', async (req, res) => {
       
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-          // For OAuth2, get fresh transporter with new token for each attempt
+          // For OAuth2, try Gmail API first (bypasses SMTP, works on Render.com)
           const useOAuth2 = process.env.GMAIL_CLIENT_ID && 
                            process.env.GMAIL_CLIENT_SECRET && 
                            process.env.GMAIL_REFRESH_TOKEN;
-          const currentTransporter = useOAuth2 ? await getTransporter() : emailTransporter;
           
-          console.log(`Sending email attempt ${attempt + 1}...`);
-          await currentTransporter.sendMail(mailOptions);
-          console.log('Email sent successfully!');
-          return true; // Success
+          if (useOAuth2) {
+            // Use Gmail API directly (bypasses SMTP, avoids firewall issues)
+            console.log(`Sending email via Gmail API (attempt ${attempt + 1})...`);
+            await sendEmailViaGmailAPI(mailOptions);
+            console.log('Email sent successfully via Gmail API!');
+            return true;
+          } else {
+            // Fallback to SMTP for non-OAuth2
+            console.log(`Sending email via SMTP (attempt ${attempt + 1})...`);
+            await emailTransporter.sendMail(mailOptions);
+            console.log('Email sent successfully via SMTP!');
+            return true;
+          }
         } catch (error) {
           console.error(`Email sending attempt ${attempt + 1} failed:`, error.message);
           console.error('Error details:', {
             code: error.code,
             command: error.command,
-            response: error.response,
+            response: error.response?.data,
             responseCode: error.responseCode
           });
-          
-          // If it's a connection timeout and we have retries left, try different port
-          if (error.code === 'ETIMEDOUT' && attempt < retries) {
-            console.log('Connection timeout detected. This may be a network/firewall issue on Render.com.');
-            console.log('Trying alternative connection method...');
-          }
           
           // If it's the last attempt, throw the error
           if (attempt === retries) {
