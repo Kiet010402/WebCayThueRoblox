@@ -23,6 +23,32 @@ function Profile() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Copy to clipboard function
+  const copyToClipboard = async (text, type) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      
+      // Show success message
+      const message = type === 'username' ? 'Đã copy tài khoản!' : 'Đã copy mật khẩu!';
+      alert(message);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      alert('Không thể copy. Vui lòng thử lại.');
+    }
+  };
+
   const fetchUserData = useCallback(async () => {
     const token = localStorage.getItem('token');
     try {
@@ -310,23 +336,74 @@ function Profile() {
                   </button>
                 </div>
               </div>
-              <div className="activity-table-wrapper">
-              <div className="activity-table">
-                <div className="table-header">
-                  <div className="col-time">Thời gian</div>
-                  <div className="col-action">Thao tác</div>
-                </div>
+              <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  border: '1px solid #ddd',
+                  backgroundColor: 'white'
+                }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                      <th style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem',
+                        width: '30%'
+                      }}>Thời gian</th>
+                      <th style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem'
+                      }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {activityLogs.length === 0 ? (
-                  <div className="empty-state">Chưa có hoạt động nào</div>
+                      <tr>
+                        <td colSpan="2" style={{ 
+                          padding: '2rem', 
+                          textAlign: 'center', 
+                          color: '#999',
+                          border: '1px solid #ddd'
+                        }}>
+                          Chưa có hoạt động nào
+                        </td>
+                      </tr>
                 ) : (
-                  activityLogs.map(log => (
-                    <div key={log._id} className="table-row">
-                      <div className="col-time">{formatDate(log.createdAt)}</div>
-                      <div className="col-action">{log.action}</div>
-                    </div>
+                      activityLogs.map((log, index) => (
+                        <tr 
+                          key={log._id} 
+                          style={{ 
+                            backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9f9f9',
+                            borderBottom: '1px solid #ddd'
+                          }}
+                        >
+                          <td style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            color: '#333',
+                            fontSize: '0.9rem'
+                          }}>
+                            {formatDate(log.createdAt)}
+                          </td>
+                          <td style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            color: '#333',
+                            fontSize: '0.9rem'
+                          }}>
+                            {log.action}
+                          </td>
+                        </tr>
                   ))
                 )}
-                </div>
+                  </tbody>
+                </table>
               </div>
               {activityTotalPages > 1 && (
                 <div className="pagination">
@@ -368,31 +445,123 @@ function Profile() {
                   </button>
                 </div>
               </div>
-              <div className="balance-table-wrapper">
-              <div className="balance-table">
-                <div className="table-header">
-                  <div className="col-time">Thời gian</div>
-                  <div className="col-initial">Số dư ban đầu</div>
-                  <div className="col-change">Số dư thay đổi</div>
-                  <div className="col-current">Số dư hiện tại</div>
-                  <div className="col-reason">Lý do</div>
-                </div>
+              <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  border: '1px solid #ddd',
+                  backgroundColor: 'white'
+                }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                      <th style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem',
+                        width: '18%'
+                      }}>Thời gian</th>
+                      <th style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem',
+                        width: '14%'
+                      }}>Số dư ban đầu</th>
+                      <th style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem',
+                        width: '14%'
+                      }}>Số dư thay đổi</th>
+                      <th style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem',
+                        width: '14%'
+                      }}>Số dư hiện tại</th>
+                      <th style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        textAlign: 'left',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem'
+                      }}>Lý do</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {balanceHistory.length === 0 ? (
-                  <div className="empty-state">Chưa có lịch sử biến động</div>
+                      <tr>
+                        <td colSpan="5" style={{ 
+                          padding: '2rem', 
+                          textAlign: 'center', 
+                          color: '#999',
+                          border: '1px solid #ddd'
+                        }}>
+                          Chưa có lịch sử biến động
+                        </td>
+                      </tr>
                 ) : (
-                  balanceHistory.map(item => (
-                    <div key={item._id} className="table-row">
-                      <div className="col-time">{formatDate(item.createdAt)}</div>
-                      <div className="col-initial">{item.initialBalance?.toLocaleString('vi-VN') || '0'}₫</div>
-                      <div className={`col-change ${item.changeAmount >= 0 ? 'positive' : 'negative'}`}>
+                      balanceHistory.map((item, index) => (
+                        <tr 
+                          key={item._id} 
+                          style={{ 
+                            backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9f9f9',
+                            borderBottom: '1px solid #ddd'
+                          }}
+                        >
+                          <td style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            color: '#333',
+                            fontSize: '0.9rem'
+                          }}>
+                            {formatDate(item.createdAt)}
+                          </td>
+                          <td style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            color: '#333',
+                            fontSize: '0.9rem'
+                          }}>
+                            {item.initialBalance?.toLocaleString('vi-VN') || '0'}₫
+                          </td>
+                          <td style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            color: item.changeAmount >= 0 ? '#4caf50' : '#f44336',
+                            fontSize: '0.9rem',
+                            fontWeight: 'bold'
+                          }}>
                         {item.changeAmount >= 0 ? '+' : ''}{item.changeAmount?.toLocaleString('vi-VN') || '0'}₫
-                      </div>
-                      <div className="col-current">{item.currentBalance?.toLocaleString('vi-VN') || '0'}₫</div>
-                      <div className="col-reason">{item.reason}</div>
-                    </div>
+                          </td>
+                          <td style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            color: '#333',
+                            fontSize: '0.9rem'
+                          }}>
+                            {item.currentBalance?.toLocaleString('vi-VN') || '0'}₫
+                          </td>
+                          <td style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            color: '#333',
+                            fontSize: '0.9rem'
+                          }}>
+                            {item.reason}
+                          </td>
+                        </tr>
                   ))
                 )}
-                </div>
+                  </tbody>
+                </table>
               </div>
               {balanceTotalPages > 1 && (
                 <div className="pagination">
@@ -485,11 +654,33 @@ function Profile() {
                                   </div>
                                   <div className="detail-item">
                                     <label>Tài khoản:</label>
+                                    <div className="credential-wrapper">
                                     <span className="credential">{accountItem.username || 'N/A'}</span>
+                                      {accountItem.username && (
+                                        <button
+                                          className="copy-btn"
+                                          onClick={() => copyToClipboard(accountItem.username, 'username')}
+                                          title="Copy tài khoản"
+                                        >
+                                          📋
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="detail-item">
                                     <label>Mật khẩu:</label>
+                                    <div className="credential-wrapper">
                                     <span className="credential">{accountItem.password || 'N/A'}</span>
+                                      {accountItem.password && (
+                                        <button
+                                          className="copy-btn"
+                                          onClick={() => copyToClipboard(accountItem.password, 'password')}
+                                          title="Copy mật khẩu"
+                                        >
+                                          📋
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="detail-item">
                                     <label>Giá:</label>

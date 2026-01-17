@@ -50,7 +50,7 @@ router.get('/:id', async (req, res) => {
 // Create news (admin only)
 router.post('/', authenticateAdmin, async (req, res) => {
   try {
-    const { title, content, category } = req.body;
+    const { title, content, category, url } = req.body;
     
     if (!title || !content) {
       return res.status(400).json({ message: 'Title và content là bắt buộc' });
@@ -59,7 +59,8 @@ router.post('/', authenticateAdmin, async (req, res) => {
     const news = new News({
       title,
       content,
-      category: category || '📢 Thông Báo'
+      category: category || '📢 Thông Báo',
+      url: url || ''
     });
 
     const newNews = await news.save();
@@ -72,12 +73,13 @@ router.post('/', authenticateAdmin, async (req, res) => {
 // Update news (admin only)
 router.put('/:id', authenticateAdmin, async (req, res) => {
   try {
-    const { title, content, category } = req.body;
+    const { title, content, category, url } = req.body;
     
     const updateData = { updatedAt: new Date() };
     if (title) updateData.title = title;
     if (content) updateData.content = content;
     if (category) updateData.category = category;
+    if (url !== undefined) updateData.url = url;
 
     const news = await News.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!news) return res.status(404).json({ message: 'News not found' });

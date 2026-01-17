@@ -213,41 +213,120 @@ function History() {
             </div>
           </div>
 
-          <div className="modern-table">
-            <div className="modern-table-header">
-              <div className="col-checkbox">
+          <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              border: '1px solid #ddd',
+              backgroundColor: 'white'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                  <th style={{ 
+                    padding: '0.75rem', 
+                    border: '1px solid #ddd',
+                    textAlign: 'left',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem',
+                    width: '50px'
+                  }}>
                 <input
                   type="checkbox"
                   checked={selectAll}
                   onChange={(e) => handleSelectAll(e.target.checked)}
                 />
-              </div>
-              <div className="col-date-modern">Ngày</div>
-              <div className="col-order-code">Mã đơn hàng</div>
-              <div className="col-order-name">Tên Đơn Hàng</div>
-              <div className="col-price-modern">Giá</div>
-              <div className="col-status-modern">Trạng Thái</div>
-            </div>
-
-            {filteredHistory.map(item => (
-              <div key={item._id} className="modern-table-row">
-                <div className="col-checkbox">
+                  </th>
+                  <th style={{ 
+                    padding: '0.75rem', 
+                    border: '1px solid #ddd',
+                    textAlign: 'left',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem'
+                  }}>Ngày</th>
+                  <th style={{ 
+                    padding: '0.75rem', 
+                    border: '1px solid #ddd',
+                    textAlign: 'left',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem'
+                  }}>Mã đơn hàng</th>
+                  <th style={{ 
+                    padding: '0.75rem', 
+                    border: '1px solid #ddd',
+                    textAlign: 'left',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem'
+                  }}>Tên Đơn Hàng</th>
+                  <th style={{ 
+                    padding: '0.75rem', 
+                    border: '1px solid #ddd',
+                    textAlign: 'left',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem'
+                  }}>Giá</th>
+                  <th style={{ 
+                    padding: '0.75rem', 
+                    border: '1px solid #ddd',
+                    textAlign: 'left',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem'
+                  }}>Trạng Thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" style={{ 
+                      padding: '2rem', 
+                      textAlign: 'center', 
+                      color: '#999',
+                      border: '1px solid #ddd'
+                    }}>
+                      Chưa có đơn hàng nào
+                    </td>
+                  </tr>
+                ) : (
+                  filteredHistory.map((item, index) => (
+                    <tr key={item._id} style={{ 
+                      borderBottom: '1px solid #ddd',
+                      backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white'
+                    }}>
+                      <td style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        textAlign: 'center'
+                      }}>
                   <input
                     type="checkbox"
                     checked={selectedItems.includes(item._id)}
                     onChange={(e) => handleSelectItem(item._id, e.target.checked)}
                   />
-                </div>
-                <div className="col-date-modern">
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        whiteSpace: 'nowrap'
+                      }}>
                   {formatDate(item.createdAt)}
-                </div>
-                <div className="col-order-code">
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd',
+                        fontWeight: 'bold',
+                        color: '#2196F3'
+                      }}>
                   {getOrderCode(item._id)}
-                </div>
-                <div className="col-order-name">
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd'
+                      }}>
                   {getOrderName(item)}
-                </div>
-                <div className="col-price-modern">
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd'
+                      }}>
                   {item.discountAmount > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       <span style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.85rem' }}>
@@ -263,14 +342,20 @@ function History() {
                   ) : (
                     <span>{item.totalAmount.toLocaleString('vi-VN')} đ</span>
                   )}
-                </div>
-                <div className="col-status-modern">
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd'
+                      }}>
                   <span className={`status-badge-modern status-${item.status.replace(/\s+/g, '')}`}>
                   {getStatusIcon(item.status)} {item.status}
                 </span>
-              </div>
-              </div>
-            ))}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
 
           <div className="table-footer">

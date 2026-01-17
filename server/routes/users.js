@@ -66,7 +66,7 @@ router.post('/login', async (req, res) => {
     // Log activity
     await ActivityLog.create({
       userId: user._id,
-      action: '[Warning] Thực hiện đăng nhập vào website',
+      action: 'Đăng nhập vào website',
       ipAddress: req.ip || req.connection.remoteAddress
     });
 

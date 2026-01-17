@@ -43,6 +43,35 @@ function News() {
         <div className="news-grid">
           {news.map(article => (
             <div key={article._id} className="news-card">
+              {article.url && (
+                <div style={{ marginBottom: '1rem' }}>
+                  {article.url.includes('youtube.com') || article.url.includes('youtu.be') ? (
+                    <iframe
+                      title={`Video YouTube - ${article.title || article._id || 'Tin tức'}`}
+                      width="100%"
+                      height="200"
+                      src={article.url.includes('youtube.com/watch?v=') 
+                        ? `https://www.youtube.com/embed/${article.url.split('v=')[1]?.split('&')[0]}`
+                        : article.url.includes('youtu.be/')
+                        ? `https://www.youtube.com/embed/${article.url.split('youtu.be/')[1]?.split('?')[0]}`
+                        : article.url}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      style={{ borderRadius: '8px' }}
+                    />
+                  ) : (
+                    <img 
+                      src={article.url} 
+                      alt={article.title}
+                      style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  )}
+                </div>
+              )}
               <div className="news-category">{article.category || '📢 Thông Báo'}</div>
               <h3>{article.title}</h3>
               <p className="news-date">📅 {formatDate(article.createdAt)}</p>

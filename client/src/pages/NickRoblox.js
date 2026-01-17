@@ -16,6 +16,9 @@ function NickRoblox() {
   const [user, setUser] = useState(null);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchasedAccount, setPurchasedAccount] = useState(null);
+  // Blind bag states
+  const [blindBags, setBlindBags] = useState([]);
+  const [blindBagsLoading] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -35,9 +38,35 @@ function NickRoblox() {
       
       // Fetch games first
       try {
-        const res = await api.get('/api/accounts/games-stats');
-        const loadedGames = res.data.games || [];
+        const [gamesRes, blindBagsRes] = await Promise.all([
+          api.get('/api/accounts/games-stats'),
+          api.get('/api/blindbags')
+        ]);
+        
+        const loadedGames = gamesRes.data.games || [];
         setGames(loadedGames);
+        
+        // Load blind bags with stats
+        const loadedBlindBags = blindBagsRes.data || [];
+        const blindBagsWithStats = await Promise.all(
+          loadedBlindBags.map(async (bag) => {
+            try {
+              const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`);
+              return {
+                ...bag,
+                available: statsRes.data.availableAccounts || 0,
+                sold: statsRes.data.soldAccounts || 0
+              };
+            } catch (error) {
+              return {
+                ...bag,
+                available: 0,
+                sold: 0
+              };
+            }
+          })
+        );
+        setBlindBags(blindBagsWithStats);
         
         // If there's a game name, automatically select it and load accounts
         if (gameName && loadedGames.length > 0) {
@@ -58,6 +87,7 @@ function NickRoblox() {
       } catch (error) {
         console.error('Error fetching games:', error);
         setGames([]);
+        setBlindBags([]);
       } finally {
         setLoading(false);
       }
@@ -146,6 +176,99 @@ function NickRoblox() {
     setSelectedGame(null);
     setAccounts([]);
     setCurrentPage(1);
+  };
+
+  const copyToClipboard = async (text, type) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert(`${type} đã được sao chép!`);
+    } catch (error) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        alert(`${type} đã được sao chép!`);
+      } catch (err) {
+        alert('Không thể sao chép. Vui lòng sao chép thủ công.');
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
+  const handleBuyBlindBag = async (blindBag) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Vui lòng đăng nhập để mua túi mù');
+      navigate('/login');
+      return;
+    }
+
+    if (!user) {
+      alert('Vui lòng đăng nhập để mua túi mù');
+      navigate('/login');
+      return;
+    }
+
+    const finalPrice = blindBag.discountedPrice;
+    if (user.balance < finalPrice) {
+      alert('Số dư không đủ! Vui lòng nạp thêm tiền.');
+      navigate('/recharge');
+      return;
+    }
+
+    if (!window.confirm(`Bạn có chắc muốn mua túi mù "${blindBag.game}" với giá ${finalPrice.toLocaleString('vi-VN')}đ?`)) {
+      return;
+    }
+
+    try {
+      const res = await api.post(`/api/blindbags/${blindBag._id}/purchase`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setPurchasedAccount({
+        username: res.data.account.username,
+        password: res.data.account.password,
+        code: res.data.account.code,
+        game: res.data.account.game
+      });
+      setShowPurchaseModal(true);
+      
+      // Update user balance
+      const updatedUser = { ...user, balance: res.data.newBalance };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      window.dispatchEvent(new Event('userBalanceUpdated'));
+      
+      // Refresh blind bags list
+      const blindBagsRes = await api.get('/api/blindbags');
+      const loadedBlindBags = blindBagsRes.data || [];
+      const blindBagsWithStats = await Promise.all(
+        loadedBlindBags.map(async (bag) => {
+          try {
+            const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`);
+            return {
+              ...bag,
+              available: statsRes.data.availableAccounts || 0,
+              sold: statsRes.data.soldAccounts || 0
+            };
+          } catch (error) {
+            return {
+              ...bag,
+              available: 0,
+              sold: 0
+            };
+          }
+        })
+      );
+      setBlindBags(blindBagsWithStats);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi mua túi mù');
+    }
   };
 
   if (loading) {
@@ -243,11 +366,45 @@ function NickRoblox() {
                   <div className="account-credentials">
                     <div className="credential-item">
                       <label>Tài khoản:</label>
-                      <div className="credential-value">{purchasedAccount.username}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div className="credential-value" style={{ flex: 1 }}>{purchasedAccount.username}</div>
+                        <button 
+                          onClick={() => copyToClipboard(purchasedAccount.username, 'Tài khoản')}
+                          style={{ 
+                            padding: '0.5rem 1rem', 
+                            background: '#4CAF50', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '4px', 
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          📋 Copy
+                        </button>
+                      </div>
                     </div>
                     <div className="credential-item">
                       <label>Mật khẩu:</label>
-                      <div className="credential-value">{purchasedAccount.password}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div className="credential-value" style={{ flex: 1 }}>{purchasedAccount.password}</div>
+                        <button 
+                          onClick={() => copyToClipboard(purchasedAccount.password, 'Mật khẩu')}
+                          style={{ 
+                            padding: '0.5rem 1rem', 
+                            background: '#4CAF50', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '4px', 
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          📋 Copy
+                        </button>
+                      </div>
                     </div>
                     <div className="credential-item">
                       <label>Mã số:</label>
@@ -279,30 +436,160 @@ function NickRoblox() {
     <div className="nick-roblox-container">
       <div className="nick-roblox-header">
         <h1>🎮 NICK ROBLOX</h1>
-        <p>Chọn game để xem danh sách accounts có sẵn</p>
       </div>
 
-      <div className="games-grid">
-        {games.map((game, index) => (
-          <div key={index} className="game-card" onClick={() => handleGameClick(game)}>
-            <div className="game-image" style={{ backgroundImage: `url(${game.image})` }}></div>
-            <div className="game-info">
-              <h3>{game.name}</h3>
-              <div className="game-stats">
-                <div className="stat-item">
-                  <span className="stat-label">Còn:</span>
-                  <span className="stat-value available">{game.available || 0}</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">Đã bán:</span>
-                  <span className="stat-value sold">{game.sold || 0}</span>
+      {/* Túi Mù Section */}
+      <div className="section-container">
+        <h2 className="section-title">🎁 Túi Mù | Nick Roblox</h2>
+        {blindBagsLoading ? (
+          <div className="loading">Đang tải túi mù...</div>
+        ) : blindBags.length === 0 ? (
+          <div className="empty-state">Chưa có túi mù nào</div>
+        ) : (
+          <div className="games-grid">
+            {blindBags.map((blindBag) => (
+              <div key={blindBag._id} className="game-card">
+                <div className="game-image" style={{ backgroundImage: `url(${blindBag.image || 'https://via.placeholder.com/300'})` }}></div>
+                <div className="game-info">
+                  <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>{blindBag.game}</h3>
+                  {blindBag.info && <p className="game-description" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#333' }}>{blindBag.info}</p>}
+                  <div className="game-stats">
+                    <div className="stat-item">
+                      <span className="stat-label">Còn:</span>
+                      <span className="stat-value available">{blindBag.available || 0}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">Đã bán:</span>
+                      <span className="stat-value sold">{blindBag.sold || 0}</span>
+                    </div>
+                  </div>
+                  <div className="game-price">
+                    {blindBag.originalPrice > blindBag.discountedPrice && (
+                      <span className="original-price">
+                        {blindBag.originalPrice.toLocaleString('vi-VN')}₫
+                      </span>
+                    )}
+                    <span className="discounted-price">
+                      {blindBag.discountedPrice.toLocaleString('vi-VN')}₫
+                    </span>
+                  </div>
+                  <button 
+                    className="btn-buy-now"
+                    onClick={() => handleBuyBlindBag(blindBag)}
+                    disabled={blindBag.available === 0}
+                  >
+                    {blindBag.available === 0 ? 'Hết hàng' : 'Mua ngay'}
+                  </button>
                 </div>
               </div>
-              <button className="btn-buy-now">Mua ngay</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Acc Section */}
+      <div className="section-container">
+        <h2 className="section-title">🎮 Acc | Nick Roblox</h2>
+        <p className="section-description">Chọn game để xem danh sách accounts có sẵn</p>
+        <div className="games-grid">
+          {games.map((game, index) => (
+            <div key={index} className="game-card" onClick={() => handleGameClick(game)}>
+              <div className="game-image" style={{ backgroundImage: `url(${game.image})` }}></div>
+              <div className="game-info">
+                <h3>{game.name}</h3>
+                <div className="game-stats">
+                  <div className="stat-item">
+                    <span className="stat-label">Còn:</span>
+                    <span className="stat-value available">{game.available || 0}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">Đã bán:</span>
+                    <span className="stat-value sold">{game.sold || 0}</span>
+                  </div>
+                </div>
+                <button className="btn-buy-now">Xem ngay</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Purchase Success Modal */}
+      {showPurchaseModal && purchasedAccount && (
+        <div className="modal-overlay" onClick={() => setShowPurchaseModal(false)}>
+          <div className="modal-content purchase-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🎉 Mua thành công!</h2>
+              <button className="modal-close" onClick={() => setShowPurchaseModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="purchase-success">
+                <p className="thank-you-message">Cảm ơn bạn đã mua hàng!</p>
+                <div className="account-credentials">
+                  <div className="credential-item">
+                    <label>Tài khoản:</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div className="credential-value" style={{ flex: 1 }}>{purchasedAccount.username}</div>
+                      <button 
+                        onClick={() => copyToClipboard(purchasedAccount.username, 'Tài khoản')}
+                        style={{ 
+                          padding: '0.5rem 1rem', 
+                          background: '#4CAF50', 
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '4px', 
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.85rem'
+                        }}
+                      >
+                        📋 Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div className="credential-item">
+                    <label>Mật khẩu:</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div className="credential-value" style={{ flex: 1 }}>{purchasedAccount.password}</div>
+                      <button 
+                        onClick={() => copyToClipboard(purchasedAccount.password, 'Mật khẩu')}
+                        style={{ 
+                          padding: '0.5rem 1rem', 
+                          background: '#4CAF50', 
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '4px', 
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.85rem'
+                        }}
+                      >
+                        📋 Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div className="credential-item">
+                    <label>Mã số:</label>
+                    <div className="credential-value">{purchasedAccount.code}</div>
+                  </div>
+                  <div className="credential-item">
+                    <label>Game:</label>
+                    <div className="credential-value">{purchasedAccount.game}</div>
+                  </div>
+                </div>
+                <p className="warning-message">
+                  ⚠️ Vui lòng lưu lại thông tin này. Bạn có thể xem lại trong phần "Lịch sử mua acc" của tài khoản.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-close-modal" onClick={() => setShowPurchaseModal(false)}>
+                Đóng
+              </button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

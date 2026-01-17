@@ -13,6 +13,10 @@ const newsSchema = new mongoose.Schema({
     type: String,
     default: '📢 Thông Báo'
   },
+  url: {
+    type: String,
+    default: ''
+  },
   createdAt: {
     type: Date,
     default: Date.now

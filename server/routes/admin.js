@@ -629,6 +629,19 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
       } (#${recharge._id.toString().substring(0, 8)})`
     });
 
+    // Log activity
+    const ActivityLog = require('../models/ActivityLog');
+    await ActivityLog.create({
+      userId: user._id,
+      action: `Nạp tiền ${recharge.amount.toLocaleString('vi-VN')}đ qua ${
+        recharge.paymentMethod === 'bank'
+          ? 'Chuyển Khoản'
+          : recharge.paymentMethod === 'momo'
+            ? 'MoMo'
+            : 'Thẻ Siêu Rẻ'
+      }`
+    });
+
     // Update recharge status
     recharge.status = 'Hoàn thành';
     recharge.processedAt = new Date();

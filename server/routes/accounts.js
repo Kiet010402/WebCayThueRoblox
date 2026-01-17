@@ -188,6 +188,13 @@ router.post('/:id/purchase', authenticate, async (req, res) => {
       status: 'Hoàn thành'
     });
 
+    // Log activity
+    const ActivityLog = require('../models/ActivityLog');
+    await ActivityLog.create({
+      userId: user._id,
+      action: `Mua acc ${account.game} - MS: ${account.code} - Giá: ${finalPrice.toLocaleString('vi-VN')}đ`
+    });
+
     // Return account with credentials (only for purchase)
     const accountWithCredentials = await Account.findById(account._id)
       .select('username password code game info image');

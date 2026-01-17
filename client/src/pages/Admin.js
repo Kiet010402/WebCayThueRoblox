@@ -27,6 +27,7 @@ function Admin() {
   const [newsTitle, setNewsTitle] = useState('');
   const [newsContent, setNewsContent] = useState('');
   const [newsCategory, setNewsCategory] = useState('📢 Thông Báo');
+  const [newsUrl, setNewsUrl] = useState('');
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
   const [userDetails, setUserDetails] = useState(null);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
@@ -93,6 +94,50 @@ function Admin() {
   const [editAccountOriginalPrice, setEditAccountOriginalPrice] = useState('');
   const [editAccountDiscountedPrice, setEditAccountDiscountedPrice] = useState('');
   const [editAccountStatus, setEditAccountStatus] = useState('');
+  // Blind bag management
+  const [blindBags, setBlindBags] = useState([]);
+  const [blindBagAccounts, setBlindBagAccounts] = useState([]);
+  const [blindBagAccountsPage, setBlindBagAccountsPage] = useState(1);
+  const [blindBagAccountsTotalPages, setBlindBagAccountsTotalPages] = useState(1);
+  const [newBlindBagGame, setNewBlindBagGame] = useState('');
+  const [newBlindBagPremiumRate, setNewBlindBagPremiumRate] = useState('');
+  const [newBlindBagImage, setNewBlindBagImage] = useState('');
+  const [newBlindBagInfo, setNewBlindBagInfo] = useState('');
+  const [newBlindBagOriginalPrice, setNewBlindBagOriginalPrice] = useState('');
+  const [newBlindBagDiscountedPrice, setNewBlindBagDiscountedPrice] = useState('');
+  const [editingBlindBag, setEditingBlindBag] = useState(null);
+  const [editBlindBagGame, setEditBlindBagGame] = useState('');
+  const [editBlindBagPremiumRate, setEditBlindBagPremiumRate] = useState('');
+  const [editBlindBagImage, setEditBlindBagImage] = useState('');
+  const [editBlindBagInfo, setEditBlindBagInfo] = useState('');
+  const [editBlindBagOriginalPrice, setEditBlindBagOriginalPrice] = useState('');
+  const [editBlindBagDiscountedPrice, setEditBlindBagDiscountedPrice] = useState('');
+  // Add account to blind bag
+  const [selectedBlindBagForAccount, setSelectedBlindBagForAccount] = useState('');
+  const [newBlindBagAccountUsername, setNewBlindBagAccountUsername] = useState('');
+  const [newBlindBagAccountPassword, setNewBlindBagAccountPassword] = useState('');
+  const [newBlindBagAccountType, setNewBlindBagAccountType] = useState('thường');
+  // Blind bag account detail modal
+  const [showBlindBagAccountDetailModal, setShowBlindBagAccountDetailModal] = useState(false);
+  const [selectedBlindBagAccount, setSelectedBlindBagAccount] = useState(null);
+  const [editBlindBagAccountUsername, setEditBlindBagAccountUsername] = useState('');
+  const [editBlindBagAccountPassword, setEditBlindBagAccountPassword] = useState('');
+  const [editBlindBagAccountType, setEditBlindBagAccountType] = useState('');
+  // Search and filter for blind bag accounts
+  const [blindBagAccountsSearch, setBlindBagAccountsSearch] = useState('');
+  const [blindBagAccountsBlindBagFilter, setBlindBagAccountsBlindBagFilter] = useState('');
+  const [blindBagAccountsTypeFilter, setBlindBagAccountsTypeFilter] = useState('');
+  const [blindBagAccountsStatusFilter, setBlindBagAccountsStatusFilter] = useState('');
+  // Collapse/expand states for blind bag management sections
+  const [showCreateBlindBag, setShowCreateBlindBag] = useState(false);
+  const [showBlindBagsList, setShowBlindBagsList] = useState(false);
+  const [showAddAccountToBlindBag, setShowAddAccountToBlindBag] = useState(false);
+  const [showBlindBagAccountsTable, setShowBlindBagAccountsTable] = useState(false);
+  // Collapse/expand states for account management sections
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
+  const [showGamesManagement, setShowGamesManagement] = useState(false);
+  const [showGamesList, setShowGamesList] = useState(false);
+  const [showAccountsTable, setShowAccountsTable] = useState(false);
 
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -250,6 +295,78 @@ function Admin() {
       fetchGames();
     }
   }, [activeTab, accountsPage, accountsSearch, accountsGameFilter, accountsStatusFilter, searchNonce, fetchGames]);
+
+  // Fetch blind bags and accounts
+  useEffect(() => {
+    const fetchBlindBags = async () => {
+      const token = localStorage.getItem('token');
+      const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
+      if (!token || !adminUser || adminUser.role !== 'admin') return;
+
+      try {
+        const res = await api.get('/api/blindbags', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const loadedBlindBags = Array.isArray(res.data) ? res.data : [];
+        
+        // Fetch stats for each blind bag (from /stats route to get accurate counts)
+        const blindBagsWithStats = await Promise.all(
+          loadedBlindBags.map(async (bag) => {
+            try {
+              const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              return {
+                ...bag,
+                availableAccounts: statsRes.data.availableAccounts || 0,
+                soldAccounts: statsRes.data.soldAccounts || 0
+              };
+            } catch (error) {
+              return {
+                ...bag,
+                availableAccounts: 0,
+                soldAccounts: 0
+              };
+            }
+          })
+        );
+        
+        setBlindBags(blindBagsWithStats);
+      } catch (error) {
+        console.error('Error fetching blind bags:', error);
+      }
+    };
+
+    const fetchBlindBagAccounts = async () => {
+      const token = localStorage.getItem('token');
+      const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
+      if (!token || !adminUser || adminUser.role !== 'admin') return;
+
+      try {
+        const searchParam = blindBagAccountsSearch ? `&search=${encodeURIComponent(blindBagAccountsSearch)}` : '';
+        const blindBagParam = blindBagAccountsBlindBagFilter ? `&blindBagId=${encodeURIComponent(blindBagAccountsBlindBagFilter)}` : '';
+        const typeParam = blindBagAccountsTypeFilter ? `&accountType=${encodeURIComponent(blindBagAccountsTypeFilter)}` : '';
+        const statusParam = blindBagAccountsStatusFilter ? `&status=${encodeURIComponent(blindBagAccountsStatusFilter)}` : '';
+        
+        const res = await api.get(
+          `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        setBlindBagAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+        setBlindBagAccountsTotalPages(res.data.totalPages || 1);
+      } catch (error) {
+        console.error('Error fetching blind bag accounts:', error);
+      }
+    };
+
+    if (activeTab === 'blindbags') {
+      fetchBlindBags();
+      fetchBlindBagAccounts();
+      fetchGames();
+    }
+  }, [activeTab, blindBagAccountsPage, blindBagAccountsSearch, blindBagAccountsBlindBagFilter, blindBagAccountsTypeFilter, blindBagAccountsStatusFilter, fetchGames]);
 
   const handleAddBalance = async () => {
     const value = Number(addBalanceAmount);
@@ -747,7 +864,7 @@ function Admin() {
     const token = localStorage.getItem('token');
     try {
       await api.post('/api/news', 
-        { title: newsTitle, content: newsContent, category: newsCategory },
+        { title: newsTitle, content: newsContent, category: newsCategory, url: newsUrl },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       alert('Tạo tin tức thành công!');
@@ -755,6 +872,7 @@ function Admin() {
       setNewsTitle('');
       setNewsContent('');
       setNewsCategory('📢 Thông Báo');
+      setNewsUrl('');
       fetchData();
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
@@ -772,6 +890,257 @@ function Admin() {
       });
       alert('Xóa tin tức thành công!');
       fetchData();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  // Blind bag handlers
+  const handleCreateBlindBag = async () => {
+    if (!newBlindBagGame || !newBlindBagOriginalPrice || !newBlindBagDiscountedPrice) {
+      alert('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.post('/api/blindbags', {
+        game: newBlindBagGame,
+        premiumRate: parseFloat(newBlindBagPremiumRate) || 0,
+        image: newBlindBagImage,
+        info: newBlindBagInfo,
+        originalPrice: parseFloat(newBlindBagOriginalPrice),
+        discountedPrice: parseFloat(newBlindBagDiscountedPrice)
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Tạo túi mù thành công!');
+      setNewBlindBagGame('');
+      setNewBlindBagPremiumRate('');
+      setNewBlindBagImage('');
+      setNewBlindBagInfo('');
+      setNewBlindBagOriginalPrice('');
+      setNewBlindBagDiscountedPrice('');
+      // Refresh blind bags
+      const res = await api.get('/api/blindbags', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setBlindBags(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleEditBlindBag = (blindBag) => {
+    setEditingBlindBag(blindBag);
+    setEditBlindBagGame(blindBag.game);
+    setEditBlindBagPremiumRate(blindBag.premiumRate?.toString() || '0');
+    setEditBlindBagImage(blindBag.image || '');
+    setEditBlindBagInfo(blindBag.info || '');
+    setEditBlindBagOriginalPrice(blindBag.originalPrice?.toString() || '');
+    setEditBlindBagDiscountedPrice(blindBag.discountedPrice?.toString() || '');
+  };
+
+  const handleUpdateBlindBag = async () => {
+    if (!editingBlindBag) return;
+    const token = localStorage.getItem('token');
+    try {
+      await api.put(`/api/blindbags/${editingBlindBag._id}`, {
+        game: editBlindBagGame,
+        premiumRate: parseFloat(editBlindBagPremiumRate) || 0,
+        image: editBlindBagImage,
+        info: editBlindBagInfo,
+        originalPrice: parseFloat(editBlindBagOriginalPrice),
+        discountedPrice: parseFloat(editBlindBagDiscountedPrice)
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Cập nhật túi mù thành công!');
+      setEditingBlindBag(null);
+      // Refresh blind bags with stats
+      const res = await api.get('/api/blindbags', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const loadedBlindBags = Array.isArray(res.data) ? res.data : [];
+      const blindBagsWithStats = await Promise.all(
+        loadedBlindBags.map(async (bag) => {
+          try {
+            const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            return {
+              ...bag,
+              availableAccounts: statsRes.data.availableAccounts || 0,
+              soldAccounts: statsRes.data.soldAccounts || 0
+            };
+          } catch (error) {
+            return {
+              ...bag,
+              availableAccounts: 0,
+              soldAccounts: 0
+            };
+          }
+        })
+      );
+      setBlindBags(blindBagsWithStats);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleDeleteBlindBag = async (blindBagId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa túi mù này?')) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/blindbags/${blindBagId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Xóa túi mù thành công!');
+      // Refresh blind bags with stats
+      const res = await api.get('/api/blindbags', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const loadedBlindBags = Array.isArray(res.data) ? res.data : [];
+      const blindBagsWithStats = await Promise.all(
+        loadedBlindBags.map(async (bag) => {
+          try {
+            const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            return {
+              ...bag,
+              availableAccounts: statsRes.data.availableAccounts || 0,
+              soldAccounts: statsRes.data.soldAccounts || 0
+            };
+          } catch (error) {
+            return {
+              ...bag,
+              availableAccounts: 0,
+              soldAccounts: 0
+            };
+          }
+        })
+      );
+      setBlindBags(blindBagsWithStats);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleAddAccountToBlindBag = async () => {
+    if (!selectedBlindBagForAccount || !newBlindBagAccountUsername || !newBlindBagAccountPassword) {
+      alert('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.post(`/api/blindbags/${selectedBlindBagForAccount}/accounts`, {
+        username: newBlindBagAccountUsername,
+        password: newBlindBagAccountPassword,
+        accountType: newBlindBagAccountType
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Đăng acc lên túi mù thành công!');
+      setNewBlindBagAccountUsername('');
+      setNewBlindBagAccountPassword('');
+      setNewBlindBagAccountType('thường');
+      // Refresh blind bag accounts
+      const searchParam = blindBagAccountsSearch ? `&search=${encodeURIComponent(blindBagAccountsSearch)}` : '';
+      const blindBagParam = blindBagAccountsBlindBagFilter ? `&blindBagId=${encodeURIComponent(blindBagAccountsBlindBagFilter)}` : '';
+      const typeParam = blindBagAccountsTypeFilter ? `&accountType=${encodeURIComponent(blindBagAccountsTypeFilter)}` : '';
+      const statusParam = blindBagAccountsStatusFilter ? `&status=${encodeURIComponent(blindBagAccountsStatusFilter)}` : '';
+      const res = await api.get(
+        `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setBlindBagAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+      setBlindBagAccountsTotalPages(res.data.totalPages || 1);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleViewBlindBagAccountDetail = async (accountId) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await api.get(`/api/blindbags/accounts/${accountId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSelectedBlindBagAccount(res.data);
+      setEditBlindBagAccountUsername(res.data.username || '');
+      setEditBlindBagAccountPassword(res.data.password || '');
+      setEditBlindBagAccountType(res.data.accountType || 'thường');
+      setShowBlindBagAccountDetailModal(true);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleUpdateBlindBagAccount = async () => {
+    if (!selectedBlindBagAccount) return;
+    const token = localStorage.getItem('token');
+    try {
+      await api.put(`/api/blindbags/accounts/${selectedBlindBagAccount._id}`, {
+        username: editBlindBagAccountUsername,
+        password: editBlindBagAccountPassword,
+        accountType: editBlindBagAccountType
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Cập nhật account thành công!');
+      // Refresh accounts list
+      const searchParam = blindBagAccountsSearch ? `&search=${encodeURIComponent(blindBagAccountsSearch)}` : '';
+      const blindBagParam = blindBagAccountsBlindBagFilter ? `&blindBagId=${encodeURIComponent(blindBagAccountsBlindBagFilter)}` : '';
+      const typeParam = blindBagAccountsTypeFilter ? `&accountType=${encodeURIComponent(blindBagAccountsTypeFilter)}` : '';
+      const statusParam = blindBagAccountsStatusFilter ? `&status=${encodeURIComponent(blindBagAccountsStatusFilter)}` : '';
+      const res = await api.get(
+        `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setBlindBagAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+      setBlindBagAccountsTotalPages(res.data.totalPages || 1);
+      // Refresh detail
+      const detailRes = await api.get(`/api/blindbags/accounts/${selectedBlindBagAccount._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSelectedBlindBagAccount(detailRes.data);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleDeleteBlindBagAccount = async () => {
+    if (!selectedBlindBagAccount) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa account này? (Lịch sử mua acc vẫn được giữ lại)')) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await api.delete(`/api/blindbags/accounts/${selectedBlindBagAccount._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Xóa account thành công!');
+      setShowBlindBagAccountDetailModal(false);
+      setSelectedBlindBagAccount(null);
+      // Refresh accounts list
+      const searchParam = blindBagAccountsSearch ? `&search=${encodeURIComponent(blindBagAccountsSearch)}` : '';
+      const blindBagParam = blindBagAccountsBlindBagFilter ? `&blindBagId=${encodeURIComponent(blindBagAccountsBlindBagFilter)}` : '';
+      const typeParam = blindBagAccountsTypeFilter ? `&accountType=${encodeURIComponent(blindBagAccountsTypeFilter)}` : '';
+      const statusParam = blindBagAccountsStatusFilter ? `&status=${encodeURIComponent(blindBagAccountsStatusFilter)}` : '';
+      const res = await api.get(
+        `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setBlindBagAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
+      setBlindBagAccountsTotalPages(res.data.totalPages || 1);
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
     }
@@ -855,6 +1224,13 @@ function Admin() {
           >
             <span className="sidebar-icon">🎫</span>
             <span className="sidebar-label">Quản lý Voucher</span>
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'blindbags' ? 'active' : ''}`}
+            onClick={() => setActiveTab('blindbags')}
+          >
+            <span className="sidebar-icon">🎁</span>
+            <span className="sidebar-label">Quản lý Túi Mù</span>
           </div>
           <div 
             className={`sidebar-item ${activeTab === 'accounts' ? 'active' : ''}`}
@@ -981,86 +1357,21 @@ function Admin() {
           )}
 
           {activeTab === 'accounts' && (
-            <div className="modern-table-container">
-              <div className="table-header-bar">
-                <div className="header-title">
-                  <span className="info-icon">🎮</span>
-                  <span>QUẢN LÝ ACC</span>
-                </div>
-              </div>
-
-              <div className="table-controls">
-                <div className="control-left">
-                  <input
-                    type="text"
-                    className="search-input"
-                    placeholder="Tìm kiếm (mã số, game, tk)..."
-                    value={accountsSearch}
-                    onChange={(e) => setAccountsSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        setAccountsPage(1);
-                        setSearchNonce(prev => prev + 1);
-                      }
-                    }}
-                  />
-                  <select
-                    className="status-filter-select"
-                    value={accountsGameFilter}
-                    onChange={(e) => {
-                      setAccountsGameFilter(e.target.value);
-                      setAccountsPage(1);
-                    }}
-                  >
-                    <option value="">Tất cả Game</option>
-                    {availableGames.map((game) => (
-                      <option key={game} value={game}>{game}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="status-filter-select"
-                    value={accountsStatusFilter}
-                    onChange={(e) => {
-                      setAccountsStatusFilter(e.target.value);
-                      setAccountsPage(1);
-                    }}
-                  >
-                    <option value="">Tất cả trạng thái</option>
-                    <option value="chưa bán">Chưa bán</option>
-                    <option value="đã bán">Đã bán</option>
-                  </select>
-                  <button
-                    className="btn-search"
-                    onClick={() => {
-                      setAccountsPage(1);
-                      setSearchNonce(prev => prev + 1);
-                    }}
-                  >
-                    <span className="search-icon">🔍</span>
-                    Tìm kiếm
-        </button>
-                  {(accountsSearch || accountsGameFilter || accountsStatusFilter) && (
-        <button 
-                      className="btn-clear-filter"
-                      onClick={() => {
-                        setAccountsSearch('');
-                        setAccountsGameFilter('');
-                        setAccountsStatusFilter('');
-                        setAccountsPage(1);
-                        setSearchNonce(prev => prev + 1);
-                      }}
-        >
-                      <span className="trash-icon">🗑️</span>
-                      Xóa bộ lọc
-        </button>
-                  )}
-                </div>
-      </div>
-
+            <>
               <div className="profile-card" style={{ marginBottom: '1.5rem' }}>
-                <div className="profile-header">
-                  <h2 className="section-title">Đăng Acc mới</h2>
+                <div 
+                  className="profile-header" 
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setShowCreateAccount(!showCreateAccount)}
+                >
+                  <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: 0 }}>
+                    <span>Đăng Acc mới</span>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 'bold', marginLeft: '1rem' }}>
+                      {showCreateAccount ? '−' : '+'}
+                    </span>
+                  </h2>
                 </div>
+                <div className={`collapsible-content ${showCreateAccount ? 'expanded' : 'collapsed'}`}>
                 <div className="profile-details">
                   <div className="detail-column" style={{ maxWidth: '600px' }}>
                     <div className="detail-item">
@@ -1142,14 +1453,25 @@ function Admin() {
                       Đăng Acc
                     </button>
                   </div>
+                  </div>
                 </div>
               </div>
 
               {/* Games Management */}
               <div className="profile-card" style={{ marginBottom: '1.5rem', marginTop: '2rem' }}>
-                <div className="profile-header">
-                  <h2 className="section-title">Quản lý Games</h2>
+                <div 
+                  className="profile-header" 
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setShowGamesManagement(!showGamesManagement)}
+                >
+                  <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: 0 }}>
+                    <span>Quản lý Games</span>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 'bold', marginLeft: '1rem' }}>
+                      {showGamesManagement ? '−' : '+'}
+                    </span>
+                  </h2>
                 </div>
+                <div className={`collapsible-content ${showGamesManagement ? 'expanded' : 'collapsed'}`}>
                 <div className="profile-details">
                   <div className="detail-column" style={{ maxWidth: '600px' }}>
                     <div className="detail-item">
@@ -1184,15 +1506,26 @@ function Admin() {
                       Thêm Game
                     </button>
                   </div>
+                  </div>
                 </div>
               </div>
 
               {/* Games List */}
               {games.length > 0 && (
                 <div className="profile-card" style={{ marginBottom: '1.5rem' }}>
-                  <div className="profile-header">
-                    <h2 className="section-title">Danh sách Games</h2>
+                  <div 
+                    className="profile-header" 
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setShowGamesList(!showGamesList)}
+                  >
+                    <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: 0 }}>
+                      <span>Danh sách Games</span>
+                      <span style={{ fontSize: '1.5rem', fontWeight: 'bold', marginLeft: '1rem' }}>
+                        {showGamesList ? '−' : '+'}
+                      </span>
+                    </h2>
                   </div>
+                  <div className={`collapsible-content ${showGamesList ? 'expanded' : 'collapsed'}`}>
                   <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
                     {games.map((game) => (
                       <div key={game._id} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '1rem' }}>
@@ -1258,48 +1591,154 @@ function Admin() {
                       </div>
                     ))}
                   </div>
+                  </div>
                 </div>
               )}
 
-              <div className="modern-table">
-                <div className="modern-table-header">
-                  <div className="col-date">Ngày</div>
-                  <div className="col-code">Mã Số</div>
-                  <div className="col-game">Game</div>
-                  <div className="col-info">Thông tin</div>
-                  <div className="col-status">Trạng thái</div>
-                  <div className="col-actions">Thao tác</div>
+            <div className="modern-table-container" style={{ marginTop: '2rem' }}>
+              <div 
+                className="table-header-bar"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setShowAccountsTable(!showAccountsTable)}
+              >
+                <div className="header-title">
+                  <span className="info-icon">🎮</span>
+                  <span>QUẢN LÝ ACC</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold', marginLeft: '1rem' }}>
+                    {showAccountsTable ? '−' : '+'}
+                  </span>
                 </div>
+              </div>
+              <div className={`collapsible-content ${showAccountsTable ? 'expanded' : 'collapsed'}`}>
 
+              <div className="table-controls">
+                <div className="control-left">
+                  <input
+                    type="text"
+                    className="search-input"
+                    placeholder="Tìm kiếm (mã số, game, tk)..."
+                    value={accountsSearch}
+                    onChange={(e) => setAccountsSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setAccountsPage(1);
+                        setSearchNonce(prev => prev + 1);
+                      }
+                    }}
+                  />
+                  <select
+                    className="status-filter-select"
+                    value={accountsGameFilter}
+                    onChange={(e) => {
+                      setAccountsGameFilter(e.target.value);
+                      setAccountsPage(1);
+                    }}
+                  >
+                    <option value="">Tất cả Game</option>
+                    {availableGames.map((game) => (
+                      <option key={game} value={game}>{game}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="status-filter-select"
+                    value={accountsStatusFilter}
+                    onChange={(e) => {
+                      setAccountsStatusFilter(e.target.value);
+                      setAccountsPage(1);
+                    }}
+                  >
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="chưa bán">Chưa bán</option>
+                    <option value="đã bán">Đã bán</option>
+                  </select>
+                  <button
+                    className="btn-search"
+                    onClick={() => {
+                      setAccountsPage(1);
+                      setSearchNonce(prev => prev + 1);
+                    }}
+                  >
+                    <span className="search-icon">🔍</span>
+                    Tìm kiếm
+        </button>
+                  {(accountsSearch || accountsGameFilter || accountsStatusFilter) && (
+        <button 
+                      className="btn-clear-filter"
+                      onClick={() => {
+                        setAccountsSearch('');
+                        setAccountsGameFilter('');
+                        setAccountsStatusFilter('');
+                        setAccountsPage(1);
+                        setSearchNonce(prev => prev + 1);
+                      }}
+        >
+                      <span className="trash-icon">🗑️</span>
+                      Xóa bộ lọc
+        </button>
+                  )}
+                </div>
+      </div>
+
+              <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  border: '1px solid #ddd',
+                  backgroundColor: 'white'
+                }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                      <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Ngày</th>
+                      <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Mã Số</th>
+                      <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Game</th>
+                      <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Thông tin</th>
+                      <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Trạng thái</th>
+                      <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {accounts.length === 0 ? (
-                  <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
+                      <tr>
+                        <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#999', border: '1px solid #ddd' }}>
                     Chưa có account nào
-                  </div>
+                        </td>
+                      </tr>
                 ) : (
-                  accounts.map((acc) => (
-                    <div key={acc._id} className="modern-table-row account-row">
-                      <div className="col-date" style={{ whiteSpace: 'nowrap' }}>
+                      accounts.map((acc, index) => (
+                        <tr key={acc._id} style={{ 
+                          borderBottom: '1px solid #ddd',
+                          backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white'
+                        }}>
+                          <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
                         {acc.createdAt ? formatDate(acc.createdAt) : 'N/A'}
-                      </div>
-                      <div className="col-code" style={{ fontWeight: '600', color: '#1976D2' }}>{acc.code}</div>
-                      <div className="col-game">{acc.game}</div>
-                      <div className="col-info">{acc.info || '-'}</div>
-                      <div className="col-status">
+                          </td>
+                          <td style={{ padding: '0.75rem', border: '1px solid #ddd', fontWeight: '600', color: '#1976D2' }}>
+                            {acc.code}
+                          </td>
+                          <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                            {acc.game}
+                          </td>
+                          <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                            {acc.info || '-'}
+                          </td>
+                          <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                         <span className={`status-badge status-${acc.status === 'chưa bán' ? 'available' : 'sold'}`}>
                           {acc.status === 'chưa bán' ? 'Chưa bán' : 'Đã bán'}
                         </span>
-                      </div>
-                      <div className="col-actions">
+                          </td>
+                          <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                         <button 
                           className="btn-detail-account"
                           onClick={() => handleShowAccountDetail(acc)}
                         >
                           Chi tiết
                         </button>
-                      </div>
-                    </div>
+                          </td>
+                        </tr>
                   ))
                 )}
+                  </tbody>
+                </table>
               </div>
 
               <div className="table-footer">
@@ -1343,6 +1782,8 @@ function Admin() {
                 </div>
               )}
             </div>
+            </div>
+          </>
           )}
 
           {/* Account Detail Modal */}
@@ -1572,47 +2013,66 @@ function Admin() {
             </div>
           </div>
 
-          <div className="modern-table">
-            <div className="modern-table-header">
-              <div className="col-code">Mã</div>
-              <div className="col-discount">Giảm giá</div>
-              <div className="col-amount">Áp dụng cho đơn</div>
-              <div className="col-date">Hết hạn</div>
-              <div className="col-status">Trạng thái</div>
-              <div className="col-actions">Thao tác</div>
-            </div>
-
+          <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              border: '1px solid #ddd',
+              backgroundColor: 'white'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Mã</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Giảm giá</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Áp dụng cho đơn</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Hết hạn</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Trạng thái</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
             {vouchers.length === 0 ? (
-              <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
+                  <tr>
+                    <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#999', border: '1px solid #ddd' }}>
                 Chưa có voucher nào
-              </div>
+                    </td>
+                  </tr>
             ) : (
-              vouchers.map((v) => (
-                <div key={v._id} className="modern-table-row voucher-row">
-                  <div className="col-code">{v.code}</div>
-                  <div className="col-discount">{v.discount}%</div>
-                  <div className="col-amount">
+                  vouchers.map((v, index) => (
+                    <tr key={v._id} style={{ 
+                      borderBottom: '1px solid #ddd',
+                      backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white'
+                    }}>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', fontWeight: 'bold' }}>
+                        {v.code}
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                        {v.discount}%
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                     {v.minOrderAmount ? `${v.minOrderAmount.toLocaleString('vi-VN')}đ` : '0đ'}
-                  </div>
-                  <div className="col-date">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                     {v.expiresAt ? formatDate(v.expiresAt) : 'N/A'}
-                  </div>
-                  <div className="col-status">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                     <span className={`status-badge status-${v.status}`}>
                       {v.status === 'active' ? 'Hoạt động' : 'Hết hạn'}
                     </span>
-                  </div>
-                  <div className="col-actions">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                     <button 
                       className="btn-delete-voucher"
                       onClick={() => handleDeleteVoucher(v._id, v.code)}
                     >
                       Xóa
                     </button>
-                  </div>
-                </div>
+                      </td>
+                    </tr>
               ))
             )}
+              </tbody>
+            </table>
           </div>
 
           <div className="table-footer">
@@ -1708,35 +2168,54 @@ function Admin() {
             </div>
           </div>
 
-          <div className="modern-table">
-            <div className="modern-table-header">
-              <div className="col-checkbox">
+          <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              border: '1px solid #ddd',
+              backgroundColor: 'white'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem', width: '50px' }}>
                 <input type="checkbox" />
-              </div>
-            <div className="col-username">Username</div>
-            <div className="col-email">Email</div>
-            <div className="col-balance">Số Dư</div>
-            <div className="col-role">Role</div>
-            <div className="col-action">Hành Động</div>
-          </div>
-
+                  </th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Username</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Email</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Số Dư</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Role</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Hành Động</th>
+                </tr>
+              </thead>
+              <tbody>
           {users.length === 0 ? (
-            <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
+                  <tr>
+                    <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#999', border: '1px solid #ddd' }}>
               Chưa có user nào
-            </div>
+                    </td>
+                  </tr>
           ) : (
-            users.map(user => (
-                <div key={user._id} className="modern-table-row">
-                  <div className="col-checkbox">
+                  users.map((user, index) => (
+                    <tr key={user._id} style={{ 
+                      borderBottom: '1px solid #ddd',
+                      backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white'
+                    }}>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'center' }}>
                     <input type="checkbox" />
-                  </div>
-                <div className="col-username">{user.username}</div>
-                <div className="col-email">{user.email}</div>
-                <div className="col-balance">{user.balance?.toLocaleString('vi-VN') || '0'}đ</div>
-                <div className="col-role">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                        {user.username}
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                        {user.email}
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                        {user.balance?.toLocaleString('vi-VN') || '0'}đ
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                   <span className={`role-badge ${user.role}`}>{user.role}</span>
-                </div>
-                <div className="col-action">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                   <button 
                     className="btn-view-detail"
                     onClick={() => handleViewUserDetails(user._id)}
@@ -1744,10 +2223,12 @@ function Admin() {
                   >
                     Chi Tiết
                   </button>
-                </div>
-              </div>
+                      </td>
+                    </tr>
             ))
             )}
+              </tbody>
+            </table>
           </div>
 
           <div className="table-footer">
@@ -1829,49 +2310,69 @@ function Admin() {
             </div>
           </div>
 
-          <div className="modern-table">
-            <div className="modern-table-header">
-              <div className="col-checkbox">
+          <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              border: '1px solid #ddd',
+              backgroundColor: 'white'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem', width: '50px' }}>
                 <input type="checkbox" />
-              </div>
-            <div className="col-date">Ngày</div>
-            <div className="col-user">User</div>
-            <div className="col-amount">Số Tiền</div>
-            <div className="col-method">Phương Thức</div>
-            <div className="col-bill">Bill</div>
-            <div className="col-status">Trạng Thái</div>
-            <div className="col-action">Hành Động</div>
-          </div>
-
+                  </th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Ngày</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>User</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Số Tiền</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Phương Thức</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Bill</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Trạng Thái</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Hành Động</th>
+                </tr>
+              </thead>
+              <tbody>
           {recharges.length === 0 ? (
-            <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
+                  <tr>
+                    <td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: '#999', border: '1px solid #ddd' }}>
               Chưa có yêu cầu nạp tiền nào
-            </div>
+                    </td>
+                  </tr>
           ) : (
-            recharges.map(recharge => (
-                <div key={recharge._id} className="modern-table-row">
-                  <div className="col-checkbox">
+                  recharges.map((recharge, index) => (
+                    <tr key={recharge._id} style={{ 
+                      borderBottom: '1px solid #ddd',
+                      backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white'
+                    }}>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'center' }}>
                     <input type="checkbox" />
-                  </div>
-                <div className="col-date">{formatDate(recharge.createdAt)}</div>
-                <div className="col-user">{recharge.userId?.username || 'N/A'}</div>
-                <div className="col-amount">{recharge.amount.toLocaleString('vi-VN')}đ</div>
-                <div className="col-method">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
+                        {formatDate(recharge.createdAt)}
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
+                        {recharge.userId?.username || 'N/A'}
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
+                        {recharge.amount.toLocaleString('vi-VN')}đ
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
                   {recharge.paymentMethod === 'bank'
                     ? 'Chuyển Khoản'
                     : recharge.paymentMethod === 'momo'
                       ? 'MoMo'
                       : 'Thẻ Siêu Rẻ'}
-                </div>
-                <div className="col-bill">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
                   <button 
                     className="btn-view-bill"
                       onClick={() => handleViewBill(recharge._id)}
+                          style={{ whiteSpace: 'nowrap' }}
                   >
                     Xem Bill
                   </button>
-                </div>
-                <div className="col-status">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
                   <span className={`status-badge status-${recharge.status.replace(/\s+/g, '')}`}>
                     {recharge.status}
                   </span>
@@ -1880,8 +2381,8 @@ function Admin() {
                         Lý do: {recharge.rejectionReason}
                       </div>
                     )}
-                </div>
-                <div className="col-action">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
                   {recharge.status === 'Đang xử lí' && (
                     <>
                       <button 
@@ -1893,6 +2394,7 @@ function Admin() {
                       <button 
                         className="btn-reject"
                         onClick={() => handleRejectRecharge(recharge._id)}
+                              style={{ marginLeft: '0.5rem' }}
                       >
                         Từ chối
                       </button>
@@ -1915,10 +2417,12 @@ function Admin() {
                       Xóa
                     </button>
                   )}
-                </div>
-              </div>
+                      </td>
+                    </tr>
             ))
             )}
+              </tbody>
+            </table>
           </div>
 
           <div className="table-footer">
@@ -2029,86 +2533,111 @@ function Admin() {
             </div>
           </div>
 
-          <div className="modern-table">
-            <div className="modern-table-header">
-              <div className="col-checkbox">
+          <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              border: '1px solid #ddd',
+              backgroundColor: 'white'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem', width: '50px' }}>
                 <input type="checkbox" />
-              </div>
-            <div className="col-date">Ngày</div>
-              <div className="col-code">Mã Đơn</div>
-            <div className="col-user">User</div>
-            <div className="col-order">Đơn Hàng</div>
-            <div className="col-amount">Số Tiền</div>
-            <div className="col-status">Trạng Thái</div>
-            <div className="col-action">Hành Động</div>
-          </div>
-
+                  </th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Ngày</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Mã Đơn</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>User</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Đơn Hàng</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Số Tiền</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Trạng Thái</th>
+                  <th style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontSize: '0.9rem' }}>Hành Động</th>
+                </tr>
+              </thead>
+              <tbody>
           {orders.length === 0 ? (
-            <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
+                  <tr>
+                    <td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: '#999', border: '1px solid #ddd' }}>
               Chưa có đơn hàng nào
-            </div>
+                    </td>
+                  </tr>
           ) : (
-            orders.map(order => (
-                <div key={order._id} className="modern-table-row">
-                  <div className="col-checkbox">
+                  orders.map((order, index) => (
+                    <tr key={order._id} style={{ 
+                      borderBottom: '1px solid #ddd',
+                      backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white'
+                    }}>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', textAlign: 'center' }}>
                     <input type="checkbox" />
-                  </div>
-                <div className="col-date">{formatDate(order.createdAt)}</div>
-                  <div className="col-code" style={{ color: '#2196F3', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
+                        {formatDate(order.createdAt)}
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', color: '#2196F3', fontWeight: 'bold', fontSize: '0.9rem' }}>
                     {order._id ? order._id.toString().substring(0, 8).toUpperCase() : 'N/A'}
-                  </div>
-                <div className="col-user">{order.userId?.username || 'N/A'}</div>
-                <div className="col-order">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                        {order.userId?.username || 'N/A'}
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
                   {order.orderType === 'service' 
                     ? `${order.serviceName} - ${order.gameName}`
+                          : order.items && order.items.length > 0
+                            ? order.items.map(item => `${item.game || item.name || 'N/A'}${item.name && item.game ? ` - ${item.name}` : ''}`).join(', ')
                     : 'Đơn hàng sản phẩm'
                   }
-                </div>
-                <div className="col-amount">{order.totalAmount.toLocaleString('vi-VN')}đ</div>
-                <div className="col-status">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                        {order.totalAmount.toLocaleString('vi-VN')}đ
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                 <select 
                   value={order.status}
                   onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
                   className="status-select"
+                          style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd', fontSize: '0.9rem', minWidth: '150px' }}
                 >
                   <option value="Đang xử lí">Đang xử lí</option>
                   <option value="Đang cày">Đang cày</option>
                   <option value="Hoàn thành">Hoàn thành</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
-                </div>
-                <div className="col-action">
+                      </td>
+                      <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <button 
                     className="btn-detail"
                     onClick={() => {
                       setSelectedOrder(order);
                       setShowOrderDetailModal(true);
                     }}
+                            style={{ margin: 0, whiteSpace: 'nowrap' }}
                   >
                     Chi Tiết
                   </button>
-                  {order.status === 'Hoàn thành' && (
                     <button 
                       className="btn-delete"
                       onClick={() => handleDeleteOrder(order._id)}
                       style={{
-                        padding: '0.4rem 0.8rem',
+                              padding: '0.5rem 1rem',
                         background: '#f44336',
                         color: 'white',
                         border: 'none',
                         borderRadius: '4px',
                         cursor: 'pointer',
                         fontSize: '0.85rem',
-                        marginLeft: '0.5rem'
+                              margin: 0
                       }}
                     >
                       Xóa
                     </button>
-                  )}
                 </div>
-              </div>
+                      </td>
+                    </tr>
             ))
             )}
+              </tbody>
+            </table>
           </div>
 
           <div className="table-footer">
@@ -2171,9 +2700,174 @@ function Admin() {
               Chưa có tin tức nào
             </div>
           ) : (
-            <div className="news-list">
+            <div className="news-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
               {news.map(item => (
-                <div key={item._id} style={{ 
+                <div key={item._id} className="profile-card" style={{ marginBottom: 0 }}>
+                  {item.url && (
+                    <div style={{ marginBottom: '1rem' }}>
+                      {item.url.includes('youtube.com') || item.url.includes('youtu.be') ? (
+                        <iframe
+                          title={`Video YouTube - ${item.title || item._id || 'Tin tức'}`}
+                          width="100%"
+                          height="200"
+                          src={item.url.includes('youtube.com/watch?v=') 
+                            ? `https://www.youtube.com/embed/${item.url.split('v=')[1]?.split('&')[0]}`
+                            : item.url.includes('youtu.be/')
+                            ? `https://www.youtube.com/embed/${item.url.split('youtu.be/')[1]?.split('?')[0]}`
+                            : item.url}
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          style={{ borderRadius: '8px' }}
+                        />
+                      ) : (
+                        <img 
+                          src={item.url} 
+                          alt={item.title}
+                          style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '8px' }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                  <div style={{ color: '#666', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                    {item.category || '📢 Thông Báo'}
+                  </div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#333', fontSize: '1.1rem' }}>{item.title}</h4>
+                  <p style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                    {item.content.length > 150 ? item.content.substring(0, 150) + '...' : item.content}
+                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                    <div style={{ color: '#999', fontSize: '0.85rem' }}>
+                      📅 {formatDate(item.createdAt)}
+                    </div>
+                    <button 
+                      className="btn-reject"
+                      onClick={() => handleDeleteNews(item._id)}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'blindbags' && (
+        <div className="blindbag-management">
+          {/* Tạo túi mù */}
+          <div className="profile-card" style={{ marginBottom: '1.5rem' }}>
+            <div 
+              className="profile-header" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => setShowCreateBlindBag(!showCreateBlindBag)}
+            >
+              <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: 0 }}>
+                <span>Tạo túi mù</span>
+                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', marginLeft: '1rem' }}>
+                  {showCreateBlindBag ? '−' : '+'}
+                </span>
+              </h2>
+            </div>
+            <div className={`collapsible-content ${showCreateBlindBag ? 'expanded' : 'collapsed'}`}>
+              <div className="profile-details">
+              <div className="detail-column" style={{ maxWidth: '600px' }}>
+                <div className="detail-item">
+                  <label>Game:</label>
+                  <input
+                    type="text"
+                    value={newBlindBagGame}
+                    onChange={(e) => setNewBlindBagGame(e.target.value)}
+                    placeholder="Tên game"
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Tỉ lệ (% ra acc xịn):</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={newBlindBagPremiumRate}
+                    onChange={(e) => setNewBlindBagPremiumRate(e.target.value)}
+                    placeholder="0.001-100"
+                    min="0.001"
+                    max="100"
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Image URL:</label>
+                  <input
+                    type="text"
+                    value={newBlindBagImage}
+                    onChange={(e) => setNewBlindBagImage(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Thông tin:</label>
+                  <textarea
+                    value={newBlindBagInfo}
+                    onChange={(e) => setNewBlindBagInfo(e.target.value)}
+                    placeholder="Thông tin về túi mù"
+                    rows="3"
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Giá gốc:</label>
+                  <input
+                    type="number"
+                    value={newBlindBagOriginalPrice}
+                    onChange={(e) => setNewBlindBagOriginalPrice(e.target.value)}
+                    placeholder="Giá gốc"
+                    min="0"
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Giá đã giảm:</label>
+                  <input
+                    type="number"
+                    value={newBlindBagDiscountedPrice}
+                    onChange={(e) => setNewBlindBagDiscountedPrice(e.target.value)}
+                    placeholder="Giá đã giảm"
+                    min="0"
+                  />
+                </div>
+                <button className="btn-confirm" onClick={handleCreateBlindBag}>
+                  Tạo túi mù
+                </button>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          {/* Danh sách túi mù */}
+          <div className="profile-card" style={{ marginBottom: '1.5rem' }}>
+            <div 
+              className="profile-header" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => setShowBlindBagsList(!showBlindBagsList)}
+            >
+              <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: 0 }}>
+                <span>Danh sách túi mù</span>
+                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', marginLeft: '1rem' }}>
+                  {showBlindBagsList ? '−' : '+'}
+                </span>
+              </h2>
+            </div>
+            <div className={`collapsible-content ${showBlindBagsList ? 'expanded' : 'collapsed'}`}>
+            {blindBags.length === 0 ? (
+              <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#999' }}>
+                Chưa có túi mù nào
+              </div>
+            ) : (
+              <div className="blindbag-list">
+                {blindBags.map(bag => (
+                  <div key={bag._id} style={{
                   background: '#f5f5f5', 
                   padding: '1rem', 
                   marginBottom: '1rem', 
@@ -2183,28 +2877,441 @@ function Admin() {
                   alignItems: 'flex-start'
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ color: '#666', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                      {item.category || '📢 Thông Báo'}
+                      <h4 style={{ margin: '0 0 0.5rem 0', color: '#333' }}>{bag.game}</h4>
+                      {bag.info && <p style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>{bag.info}</p>}
+                      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                        <span style={{ color: '#666', fontSize: '0.85rem' }}>
+                          Tỉ lệ xịn: {bag.premiumRate}%
+                        </span>
+                        <span style={{ color: '#666', fontSize: '0.85rem' }}>
+                          Còn: {bag.availableAccounts || 0} | Đã bán: {bag.soldAccounts || 0}
+                        </span>
+                        <span style={{ color: '#f44336', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                          {bag.discountedPrice?.toLocaleString('vi-VN')}₫
+                          {bag.originalPrice > bag.discountedPrice && (
+                            <span style={{ textDecoration: 'line-through', color: '#999', marginLeft: '0.5rem', fontSize: '0.8rem' }}>
+                              {bag.originalPrice?.toLocaleString('vi-VN')}₫
+                            </span>
+                          )}
+                        </span>
                     </div>
-                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#333' }}>{item.title}</h4>
-                    <p style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>
-                      {item.content.length > 100 ? item.content.substring(0, 100) + '...' : item.content}
-                    </p>
-                    <div style={{ color: '#999', fontSize: '0.85rem' }}>
-                      📅 {formatDate(item.createdAt)}
                     </div>
-                  </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
+                      <button
+                        className="btn-confirm"
+                        onClick={() => handleEditBlindBag(bag)}
+                        style={{ padding: '0.5rem 1rem' }}
+                      >
+                        Sửa
+                      </button>
                   <button 
                     className="btn-reject"
-                    onClick={() => handleDeleteNews(item._id)}
-                    style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
+                        onClick={() => handleDeleteBlindBag(bag._id)}
+                        style={{ padding: '0.5rem 1rem' }}
                   >
                     Xóa
                   </button>
+                    </div>
                 </div>
               ))}
             </div>
           )}
+        </div>
+          </div>
+
+          {/* Form chỉnh sửa túi mù */}
+          {editingBlindBag && (
+            <div className="profile-card" style={{ marginBottom: '1.5rem', background: '#fff3cd' }}>
+              <div className="profile-header">
+                <h2 className="section-title">Chỉnh sửa túi mù</h2>
+              </div>
+              <div className="profile-details">
+                <div className="detail-column" style={{ maxWidth: '600px' }}>
+                  <div className="detail-item">
+                    <label>Game:</label>
+                    <input
+                      type="text"
+                      value={editBlindBagGame}
+                      onChange={(e) => setEditBlindBagGame(e.target.value)}
+                    />
+                  </div>
+                  <div className="detail-item">
+                    <label>Tỉ lệ (% ra acc xịn):</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={editBlindBagPremiumRate}
+                      onChange={(e) => setEditBlindBagPremiumRate(e.target.value)}
+                      min="0.001"
+                      max="100"
+                    />
+                  </div>
+                  <div className="detail-item">
+                    <label>Image URL:</label>
+                    <input
+                      type="text"
+                      value={editBlindBagImage}
+                      onChange={(e) => setEditBlindBagImage(e.target.value)}
+                    />
+                  </div>
+                  <div className="detail-item">
+                    <label>Thông tin:</label>
+                    <textarea
+                      value={editBlindBagInfo}
+                      onChange={(e) => setEditBlindBagInfo(e.target.value)}
+                      rows="3"
+                      style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                    />
+                  </div>
+                  <div className="detail-item">
+                    <label>Giá gốc:</label>
+                    <input
+                      type="number"
+                      value={editBlindBagOriginalPrice}
+                      onChange={(e) => setEditBlindBagOriginalPrice(e.target.value)}
+                      min="0"
+                    />
+                  </div>
+                  <div className="detail-item">
+                    <label>Giá đã giảm:</label>
+                    <input
+                      type="number"
+                      value={editBlindBagDiscountedPrice}
+                      onChange={(e) => setEditBlindBagDiscountedPrice(e.target.value)}
+                      min="0"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button className="btn-confirm" onClick={handleUpdateBlindBag}>
+                      Cập nhật
+                    </button>
+                    <button className="btn-cancel" onClick={() => setEditingBlindBag(null)}>
+                      Hủy
+                    </button>
+                  </div>
+                </div>
+              </div>
+        </div>
+      )}
+
+          {/* Đăng acc lên túi mù */}
+          <div className="profile-card" style={{ marginBottom: '1.5rem' }}>
+            <div 
+              className="profile-header" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => setShowAddAccountToBlindBag(!showAddAccountToBlindBag)}
+            >
+              <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: 0 }}>
+                <span>Đăng acc lên túi mù</span>
+                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', marginLeft: '1rem' }}>
+                  {showAddAccountToBlindBag ? '−' : '+'}
+                </span>
+              </h2>
+            </div>
+            <div className={`collapsible-content ${showAddAccountToBlindBag ? 'expanded' : 'collapsed'}`}>
+              <div className="profile-details">
+              <div className="detail-column" style={{ maxWidth: '600px' }}>
+                <div className="detail-item">
+                  <label>Chọn túi mù:</label>
+                  <select
+                    value={selectedBlindBagForAccount}
+                    onChange={(e) => setSelectedBlindBagForAccount(e.target.value)}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                  >
+                    <option value="">-- Chọn túi mù --</option>
+                    {blindBags.map(bag => (
+                      <option key={bag._id} value={bag._id}>{bag.game}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="detail-item">
+                  <label style={{ color: '#666', fontSize: '0.85rem' }}>
+                    ⚠️ Mã số sẽ được tự động tạo theo chữ cái đầu của tên túi mù
+                  </label>
+                </div>
+                <div className="detail-item">
+                  <label>Tài khoản:</label>
+                  <input
+                    type="text"
+                    value={newBlindBagAccountUsername}
+                    onChange={(e) => setNewBlindBagAccountUsername(e.target.value)}
+                    placeholder="Username"
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Mật khẩu:</label>
+                  <input
+                    type="text"
+                    value={newBlindBagAccountPassword}
+                    onChange={(e) => setNewBlindBagAccountPassword(e.target.value)}
+                    placeholder="Password"
+                  />
+                </div>
+                <div className="detail-item">
+                  <label>Loại acc:</label>
+                  <select
+                    value={newBlindBagAccountType}
+                    onChange={(e) => setNewBlindBagAccountType(e.target.value)}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
+                  >
+                    <option value="thường">Thường</option>
+                    <option value="xịn">Xịn</option>
+                  </select>
+                </div>
+                <button className="btn-confirm" onClick={handleAddAccountToBlindBag}>
+                  Đăng acc
+                </button>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          {/* Data Table - Danh sách acc trong túi mù */}
+          <div className="modern-table-container" style={{ marginTop: '1.5rem' }}>
+            <div 
+              className="table-header-bar"
+              style={{ cursor: 'pointer' }}
+              onClick={() => setShowBlindBagAccountsTable(!showBlindBagAccountsTable)}
+            >
+              <div className="header-title">
+                <span className="info-icon">📊</span>
+                <span>DANH SÁCH ACC TRONG TÚI MÙ</span>
+                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', marginLeft: '1rem' }}>
+                  {showBlindBagAccountsTable ? '−' : '+'}
+                </span>
+              </div>
+            </div>
+
+            <div className={`collapsible-content ${showBlindBagAccountsTable ? 'expanded' : 'collapsed'}`}>
+            <div className="table-controls">
+              <div className="control-left">
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Tìm kiếm theo mã số..."
+                  value={blindBagAccountsSearch}
+                  onChange={(e) => setBlindBagAccountsSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setBlindBagAccountsPage(1);
+                    }
+                  }}
+                />
+                <select
+                  className="status-filter-select"
+                  value={blindBagAccountsBlindBagFilter}
+                  onChange={(e) => {
+                    setBlindBagAccountsBlindBagFilter(e.target.value);
+                    setBlindBagAccountsPage(1);
+                  }}
+                >
+                  <option value="">Tất cả túi mù</option>
+                  {blindBags.map(bag => (
+                    <option key={bag._id} value={bag._id}>{bag.game}</option>
+                  ))}
+                </select>
+                <select
+                  className="status-filter-select"
+                  value={blindBagAccountsTypeFilter}
+                  onChange={(e) => {
+                    setBlindBagAccountsTypeFilter(e.target.value);
+                    setBlindBagAccountsPage(1);
+                  }}
+                >
+                  <option value="">Tất cả loại acc</option>
+                  <option value="xịn">Xịn</option>
+                  <option value="thường">Thường</option>
+                </select>
+                <select
+                  className="status-filter-select"
+                  value={blindBagAccountsStatusFilter}
+                  onChange={(e) => {
+                    setBlindBagAccountsStatusFilter(e.target.value);
+                    setBlindBagAccountsPage(1);
+                  }}
+                >
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="chưa bán">Chưa bán</option>
+                  <option value="đã bán">Đã bán</option>
+                </select>
+              </div>
+              <div className="control-right">
+                <button
+                  className="btn-search"
+                  onClick={() => setBlindBagAccountsPage(1)}
+                >
+                  <span className="search-icon">🔍</span>
+                  Tìm kiếm
+                </button>
+                {(blindBagAccountsSearch || blindBagAccountsBlindBagFilter || blindBagAccountsTypeFilter || blindBagAccountsStatusFilter) && (
+                  <button
+                    className="btn-clear-filter"
+                    onClick={() => {
+                      setBlindBagAccountsSearch('');
+                      setBlindBagAccountsBlindBagFilter('');
+                      setBlindBagAccountsTypeFilter('');
+                      setBlindBagAccountsStatusFilter('');
+                      setBlindBagAccountsPage(1);
+                    }}
+                  >
+                    <span className="trash-icon">🗑️</span>
+                    Bỏ lọc
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse',
+                border: '1px solid #ddd',
+                backgroundColor: 'white'
+              }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                    <th style={{ 
+                      padding: '0.75rem', 
+                      border: '1px solid #ddd',
+                      textAlign: 'left',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem'
+                    }}>Ngày</th>
+                    <th style={{ 
+                      padding: '0.75rem', 
+                      border: '1px solid #ddd',
+                      textAlign: 'left',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem'
+                    }}>Mã số</th>
+                    <th style={{ 
+                      padding: '0.75rem', 
+                      border: '1px solid #ddd',
+                      textAlign: 'left',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem'
+                    }}>Túi mù</th>
+                    <th style={{ 
+                      padding: '0.75rem', 
+                      border: '1px solid #ddd',
+                      textAlign: 'left',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem'
+                    }}>Loại acc</th>
+                    <th style={{ 
+                      padding: '0.75rem', 
+                      border: '1px solid #ddd',
+                      textAlign: 'left',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem'
+                    }}>Trạng thái</th>
+                    <th style={{ 
+                      padding: '0.75rem', 
+                      border: '1px solid #ddd',
+                      textAlign: 'left',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem'
+                    }}>Chi tiết</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {blindBagAccounts.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" style={{ 
+                        padding: '2rem', 
+                        textAlign: 'center', 
+                        color: '#999',
+                        border: '1px solid #ddd'
+                      }}>
+                        Chưa có account nào
+                      </td>
+                    </tr>
+                  ) : (
+                    blindBagAccounts.map(account => (
+                      <tr key={account._id} style={{ 
+                        borderBottom: '1px solid #ddd',
+                        backgroundColor: account._id % 2 === 0 ? '#f9f9f9' : 'white'
+                      }}>
+                        <td style={{ 
+                          padding: '0.75rem', 
+                          border: '1px solid #ddd',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {new Date(account.createdAt).toLocaleDateString('vi-VN')}
+                        </td>
+                        <td style={{ 
+                          padding: '0.75rem', 
+                          border: '1px solid #ddd',
+                          fontWeight: 'bold'
+                        }}>
+                          {account.code}
+                        </td>
+                        <td style={{ 
+                          padding: '0.75rem', 
+                          border: '1px solid #ddd'
+                        }}>
+                          {account.blindBagId?.game || 'N/A'}
+                        </td>
+                        <td style={{ 
+                          padding: '0.75rem', 
+                          border: '1px solid #ddd'
+                        }}>
+                          <span className={`status-badge-modern ${account.accountType === 'xịn' ? 'status-Hoànthành' : 'status-Đangxửlí'}`}>
+                            {account.accountType === 'xịn' ? '⭐ Xịn' : '📦 Thường'}
+                          </span>
+                        </td>
+                        <td style={{ 
+                          padding: '0.75rem', 
+                          border: '1px solid #ddd'
+                        }}>
+                          <span className={`status-badge-modern ${account.status === 'đã bán' ? 'status-Hoànthành' : 'status-Đangxửlí'}`}>
+                            {account.status === 'đã bán' ? '✅ Đã bán' : '⏳ Chưa bán'}
+                          </span>
+                        </td>
+                        <td style={{ 
+                          padding: '0.75rem', 
+                          border: '1px solid #ddd'
+                        }}>
+                          <button
+                            className="btn-confirm"
+                            onClick={() => handleViewBlindBagAccountDetail(account._id)}
+                            style={{ padding: '0.25rem 0.75rem', fontSize: '0.85rem' }}
+                          >
+                            Chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {blindBagAccountsTotalPages > 1 && (
+              <div className="table-footer">
+                <div className="table-info">
+                  Trang {blindBagAccountsPage} / {blindBagAccountsTotalPages}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => setBlindBagAccountsPage(prev => Math.max(1, prev - 1))}
+                    disabled={blindBagAccountsPage === 1}
+                    className="page-btn"
+                  >
+                    ← Trước
+                  </button>
+                  <button
+                    onClick={() => setBlindBagAccountsPage(prev => Math.min(blindBagAccountsTotalPages, prev + 1))}
+                    disabled={blindBagAccountsPage === blindBagAccountsTotalPages}
+                    className="page-btn"
+                  >
+                    Sau →
+                  </button>
+                </div>
+              </div>
+            )}
+            </div>
+          </div>
         </div>
       )}
         </div>
@@ -2345,6 +3452,15 @@ function Admin() {
               />
             </div>
             <div className="form-group">
+              <label>URL: hiện ảnh hoặc video ví dụ như video từ link youtube</label>
+              <input
+                type="text"
+                value={newsUrl}
+                onChange={(e) => setNewsUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=... hoặc https://example.com/image.jpg"
+              />
+            </div>
+            <div className="form-group">
               <label>Nội dung:</label>
               <textarea
                 value={newsContent}
@@ -2372,6 +3488,7 @@ function Admin() {
                 setNewsTitle('');
                 setNewsContent('');
                 setNewsCategory('📢 Thông Báo');
+                setNewsUrl('');
               }} className="btn-cancel">Hủy</button>
             </div>
           </div>
@@ -2574,6 +3691,157 @@ function Admin() {
                 setSelectedRechargeId(null);
                 setRejectionReason('');
               }} className="btn-cancel">Hủy</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBlindBagAccountDetailModal && selectedBlindBagAccount && (
+        <div className="modal-overlay" onClick={() => {
+          setShowBlindBagAccountDetailModal(false);
+          setSelectedBlindBagAccount(null);
+        }} style={{ zIndex: 2000 }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Account - {selectedBlindBagAccount.code}</h2>
+              <button className="modal-close" onClick={() => {
+                setShowBlindBagAccountDetailModal(false);
+                setSelectedBlindBagAccount(null);
+              }}>×</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.9rem' }}>
+                <div>
+                  <label style={{ display: 'block', color: '#666', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Ngày tạo:</label>
+                  <div style={{ color: '#333' }}>{selectedBlindBagAccount.createdAt ? new Date(selectedBlindBagAccount.createdAt).toLocaleDateString('vi-VN') : 'N/A'}</div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#666', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Mã số:</label>
+                  <div style={{ color: '#333', fontWeight: 'bold' }}>{selectedBlindBagAccount.code || 'N/A'}</div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#666', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Túi mù:</label>
+                  <div style={{ color: '#333' }}>{selectedBlindBagAccount.blindBagId?.game || 'N/A'}</div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#666', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Trạng thái:</label>
+                  <div style={{ color: '#333' }}>
+                    {selectedBlindBagAccount.status === 'đã bán' ? '✅ Đã bán' : '⏳ Chưa bán'}
+                  </div>
+                </div>
+                {selectedBlindBagAccount.buyerId && (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', color: '#666', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Người mua:</label>
+                      <div style={{ color: '#333' }}>{selectedBlindBagAccount.buyerId?.username || 'N/A'}</div>
+                    </div>
+                    {selectedBlindBagAccount.soldAt && (
+                      <div>
+                        <label style={{ display: 'block', color: '#666', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Ngày bán:</label>
+                        <div style={{ color: '#333' }}>{new Date(selectedBlindBagAccount.soldAt).toLocaleDateString('vi-VN')}</div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              
+              {selectedBlindBagAccount.status !== 'đã bán' && (
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e0e0e0' }}>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.9rem' }}>Tài khoản:</label>
+                    <input 
+                      type="text" 
+                      value={editBlindBagAccountUsername} 
+                      onChange={(e) => setEditBlindBagAccountUsername(e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem', fontSize: '0.9rem' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.9rem' }}>Mật khẩu:</label>
+                    <input 
+                      type="text" 
+                      value={editBlindBagAccountPassword} 
+                      onChange={(e) => setEditBlindBagAccountPassword(e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem', fontSize: '0.9rem' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.9rem' }}>Loại acc:</label>
+                    <select
+                      value={editBlindBagAccountType}
+                      onChange={(e) => setEditBlindBagAccountType(e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem', fontSize: '0.9rem' }}
+                    >
+                      <option value="thường">Thường</option>
+                      <option value="xịn">Xịn</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+              {selectedBlindBagAccount.status === 'đã bán' && (
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e0e0e0' }}>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.9rem' }}>Tài khoản:</label>
+                    <input 
+                      type="text" 
+                      value={editBlindBagAccountUsername} 
+                      disabled
+                      style={{ width: '100%', padding: '0.5rem', fontSize: '0.9rem', backgroundColor: '#f5f5f5', color: '#666' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.9rem' }}>Mật khẩu:</label>
+                    <input 
+                      type="text" 
+                      value={editBlindBagAccountPassword} 
+                      disabled
+                      style={{ width: '100%', padding: '0.5rem', fontSize: '0.9rem', backgroundColor: '#f5f5f5', color: '#666' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.9rem' }}>Loại acc:</label>
+                    <input 
+                      type="text" 
+                      value={editBlindBagAccountType === 'xịn' ? '⭐ Xịn' : '📦 Thường'} 
+                      disabled
+                      style={{ width: '100%', padding: '0.5rem', fontSize: '0.9rem', backgroundColor: '#f5f5f5', color: '#666' }}
+                    />
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#f44336', fontStyle: 'italic', marginTop: '0.5rem' }}>
+                    ⚠️ Account đã bán không thể chỉnh sửa. Chỉ có thể xóa.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid #e0e0e0' }}>
+              {selectedBlindBagAccount.status === 'đã bán' && (
+                <button 
+                  onClick={handleDeleteBlindBagAccount}
+                  className="btn-reject"
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+                >
+                  Xóa
+                </button>
+              )}
+              {selectedBlindBagAccount.status !== 'đã bán' && (
+                <button 
+                  onClick={handleUpdateBlindBagAccount}
+                  className="btn-confirm"
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+                >
+                  Cập nhật
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  setShowBlindBagAccountDetailModal(false);
+                  setSelectedBlindBagAccount(null);
+                }} 
+                className="btn-cancel"
+                style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

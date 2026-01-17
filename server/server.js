@@ -48,6 +48,7 @@ app.use('/api/pricing', require('./routes/pricing'));
 app.use('/api/vouchers', require('./routes/vouchers'));
 app.use('/api/accounts', require('./routes/accounts'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/blindbags', require('./routes/blindbags'));
 
 // Basic route
 app.get('/', (req, res) => {
