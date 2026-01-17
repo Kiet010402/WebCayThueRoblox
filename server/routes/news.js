@@ -3,6 +3,8 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const News = require('../models/News');
 const User = require('../models/User');
+const { getJWTSecret } = require('../utils/auth');
+const { validateObjectId } = require('../utils/validation');
 
 // Middleware to verify admin
 const authenticateAdmin = async (req, res, next) => {
@@ -14,7 +16,7 @@ const authenticateAdmin = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, getJWTSecret());
     const user = await User.findById(decoded.userId);
     if (!user || user.role !== 'admin') {
       return res.status(403).json({ message: 'Không có quyền truy cập' });
@@ -39,6 +41,10 @@ router.get('/', async (req, res) => {
 // Get single news (public)
 router.get('/:id', async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid news ID' });
+    }
     const news = await News.findById(req.params.id);
     if (!news) return res.status(404).json({ message: 'News not found' });
     res.json(news);
@@ -73,6 +79,10 @@ router.post('/', authenticateAdmin, async (req, res) => {
 // Update news (admin only)
 router.put('/:id', authenticateAdmin, async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid news ID' });
+    }
     const { title, content, category, url } = req.body;
     
     const updateData = { updatedAt: new Date() };
@@ -93,6 +103,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 // Delete news (admin only)
 router.delete('/:id', authenticateAdmin, async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid news ID' });
+    }
     const news = await News.findByIdAndDelete(req.params.id);
     if (!news) return res.status(404).json({ message: 'News not found' });
     res.json({ message: 'Xóa tin tức thành công' });

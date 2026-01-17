@@ -3,6 +3,7 @@ const router = express.Router();
 const Message = require('../models/Message');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { getJWTSecret } = require('../utils/auth');
 
 // Middleware to authenticate user
 const authenticate = (req, res, next) => {
@@ -14,7 +15,7 @@ const authenticate = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, getJWTSecret());
     req.userId = decoded.userId;
     next();
   } catch (error) {

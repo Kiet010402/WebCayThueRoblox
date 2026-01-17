@@ -354,19 +354,19 @@ function History() {
                     
                     if (hasDiscount) {
                       return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                             <span style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.9rem' }}>
                               {originalAmount.toLocaleString('vi-VN')} đ
-                            </span>
+                      </span>
                             <span style={{ color: '#000', fontWeight: 'bold', fontSize: '0.9rem' }}>
                               {totalAmount.toLocaleString('vi-VN')} đ
-                            </span>
+                      </span>
                           </div>
-                          <span style={{ color: '#4CAF50', fontSize: '0.8rem' }}>
+                      <span style={{ color: '#4CAF50', fontSize: '0.8rem' }}>
                             (giảm {discountPercent}%)
-                          </span>
-                        </div>
+                      </span>
+                    </div>
                       );
                     }
                     return <span>{totalAmount.toLocaleString('vi-VN')} đ</span>;

@@ -10,11 +10,16 @@ function Recharge() {
   const [billImage, setBillImage] = useState(null);
   const [billImagePreview, setBillImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Card information
+  const [cardType, setCardType] = useState('Vinaphone');
+  const [cardCode, setCardCode] = useState('');
+  const [cardSerial, setCardSerial] = useState('');
 
   const paymentMethods = [
     { id: 'bank', name: '💳 Chuyển Khoản Ngân Hàng', icon: '🏦' },
     { id: 'momo', name: '📱 Ví MoMo', icon: '📱' },
     { id: 'tsr', name: '🔗 Thẻ Siêu Rẻ', icon: '🔗' },
+    { id: 'card', name: '📞 Thẻ Cào Điện Thoại', icon: '📞' },
   ];
 
   const paymentInfo = {
@@ -32,6 +37,10 @@ function Recharge() {
     tsr: {
       title: 'Thanh Toán Qua Thẻ Siêu Rẻ',
       description: 'Thanh toán qua cổng Thẻ Siêu Rẻ. Vui lòng làm theo hướng dẫn tại ô Thông Tin TSR bên dưới.'
+    },
+    card: {
+      title: 'Nạp Tiền Bằng Thẻ Cào',
+      description: 'Nạp tiền bằng thẻ cào điện thoại (Viettel, Vinaphone, Mobifone). Vui lòng upload ảnh thẻ cào rõ ràng, đầy đủ thông tin mã thẻ và serial.'
     }
   };
 
@@ -71,18 +80,34 @@ function Recharge() {
       return;
     }
 
-    if (!billImage) {
-      alert('Vui lòng upload hình bill');
-      return;
+    if (paymentMethod !== 'card') {
+      if (!billImage) {
+        alert('Vui lòng upload hình bill');
+        return;
+      }
+    } else {
+      if (!cardCode || !cardSerial) {
+        alert('Vui lòng nhập đầy đủ mã thẻ và serial');
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      await api.post('/api/recharge', {
+      const requestData = {
         amount: amount,
-        paymentMethod,
-        billImage
-      }, {
+        paymentMethod
+      };
+
+      if (paymentMethod === 'card') {
+        requestData.cardType = cardType;
+        requestData.cardCode = cardCode;
+        requestData.cardSerial = cardSerial;
+      } else {
+        requestData.billImage = billImage;
+      }
+
+      await api.post('/api/recharge', requestData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -93,6 +118,11 @@ function Recharge() {
       setCustomAmount('');
       setBillImage(null);
       setBillImagePreview(null);
+      if (paymentMethod === 'card') {
+        setCardType('Vinaphone');
+        setCardCode('');
+        setCardSerial('');
+      }
       navigate('/wallet');
     } catch (error) {
       console.error('Recharge error:', error);
@@ -149,33 +179,37 @@ function Recharge() {
             ))}
           </div>
 
-          <h2 style={{ marginTop: '2rem' }}>Upload Hình Bill</h2>
-          <div className="bill-upload">
-            <input
-              type="file"
-              id="bill-upload"
-              accept="image/*"
-              onChange={handleImageChange}
-              style={{ display: 'none' }}
-            />
-            <label htmlFor="bill-upload" className="upload-label">
-              {billImagePreview ? '📷 Thay đổi ảnh' : '📷 Chọn ảnh bill'}
-            </label>
-            {billImagePreview && (
-              <div className="image-preview">
-                <img src={billImagePreview} alt="Bill preview" />
-                <button 
-                  className="remove-image-btn"
-                  onClick={() => {
-                    setBillImage(null);
-                    setBillImagePreview(null);
-                  }}
-                >
-                  ✕
-                </button>
+          {paymentMethod !== 'card' && (
+            <>
+              <h2 style={{ marginTop: '2rem' }}>Upload Hình Bill</h2>
+              <div className="bill-upload">
+                <input
+                  type="file"
+                  id="bill-upload"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  style={{ display: 'none' }}
+                />
+                <label htmlFor="bill-upload" className="upload-label">
+                  {billImagePreview ? '📷 Thay đổi ảnh' : '📷 Chọn ảnh bill'}
+                </label>
+                {billImagePreview && (
+                  <div className="image-preview">
+                    <img src={billImagePreview} alt="Bill preview" />
+                    <button 
+                      className="remove-image-btn"
+                      onClick={() => {
+                        setBillImage(null);
+                        setBillImagePreview(null);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
 
         <div className="recharge-right">
@@ -189,6 +223,20 @@ function Recharge() {
                   <p><strong>STK:</strong> {currentPaymentInfo.account}</p>
                   <p><strong>Ngân hàng:</strong> {currentPaymentInfo.bank}</p>
                   <p><strong>Chủ tài khoản:</strong> {currentPaymentInfo.owner}</p>
+                  <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                    <img 
+                      src="https://media.discordapp.net/attachments/1324248040206368828/1462140945989505095/image.png?ex=696d1c5e&is=696bcade&hm=46b313a657dfd84d9554cbdb374cad2a7ce8247fe900470e25a6355a4b2d3aff&=&format=webp&quality=lossless" 
+                      alt="QR Code chuyển khoản" 
+                      style={{ 
+                        maxWidth: '200px', 
+                        maxHeight: '200px', 
+                        border: '1px solid #ddd', 
+                        borderRadius: '8px',
+                        padding: '0.5rem',
+                        backgroundColor: 'white'
+                      }} 
+                    />
+                  </div>
                 </>
               )}
               {paymentMethod === 'momo' && (
@@ -200,6 +248,68 @@ function Recharge() {
               {paymentMethod === 'tsr' && (
                 <>
                   <p>{currentPaymentInfo.description}</p>
+                </>
+              )}
+              {paymentMethod === 'card' && (
+                <>
+                  <div style={{ marginTop: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: '#333' }}>
+                      Loại thẻ:
+                    </label>
+                    <select
+                      value={cardType}
+                      onChange={(e) => setCardType(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #ddd',
+                        borderRadius: '8px',
+                        fontSize: '1rem'
+                      }}
+                    >
+                      <option value="Vinaphone">Vinaphone</option>
+                      <option value="Viettel">Viettel</option>
+                      <option value="Mobifone">Mobifone</option>
+                      <option value="Zing">Zing</option>
+                      <option value="Garena">Garena</option>
+                    </select>
+                  </div>
+                  <div style={{ marginTop: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: '#333' }}>
+                      Mã:
+                    </label>
+                    <input
+                      type="text"
+                      value={cardCode}
+                      onChange={(e) => setCardCode(e.target.value)}
+                      placeholder="Nhập mã thẻ"
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #ddd',
+                        borderRadius: '8px',
+                        fontSize: '1rem'
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginTop: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: '#333' }}>
+                      Serial:
+                    </label>
+                    <input
+                      type="text"
+                      value={cardSerial}
+                      onChange={(e) => setCardSerial(e.target.value)}
+                      placeholder="Nhập serial thẻ"
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #ddd',
+                        borderRadius: '8px',
+                        fontSize: '1rem'
+                      }}
+                    />
+                  </div>
                 </>
               )}
             </div>
@@ -224,7 +334,13 @@ function Recharge() {
             <button 
               className="recharge-btn" 
               onClick={handleRecharge}
-              disabled={loading || !customAmount || parseInt(customAmount) < 5000 || !billImage}
+              disabled={
+                loading || 
+                !customAmount || 
+                parseInt(customAmount) < 5000 || 
+                (paymentMethod !== 'card' && !billImage) ||
+                (paymentMethod === 'card' && (!cardCode || !cardSerial))
+              }
             >
               {loading ? 'Đang xử lý...' : '💳 TIẾN HÀNH THANH TOÁN'}
             </button>

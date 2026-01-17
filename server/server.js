@@ -1,9 +1,24 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  crossOriginEmbedderPolicy: false
+}));
 
 // Middleware
 // CORS configuration - allow both production and development URLs
@@ -20,13 +35,63 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all origins in production for now
+      // In production, reject unknown origins
+      if (process.env.NODE_ENV === 'production') {
+        console.warn(`⚠️  Blocked request from unknown origin: ${origin}`);
+        return callback(new Error('Not allowed by CORS'));
+      }
+      // In development, allow all origins
+      callback(null, true);
     }
   },
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Rate limiting - Adjusted to be less restrictive
+const generalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute (reduced from 15)
+  max: 200, // Limit each IP to 200 requests per minute (increased from 100 per 15 min)
+  message: 'Quá nhiều requests từ IP này, vui lòng thử lại sau.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health check
+    return req.path === '/health' || req.path === '/';
+  }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests per windowMs (increased from 5)
+  message: 'Quá nhiều lần thử đăng nhập, vui lòng thử lại sau 15 phút.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Don't count successful requests
+});
+
+// More lenient limiter for frequent API calls (chat, user info, etc.)
+const frequentAPILimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute for frequent calls
+  message: 'Quá nhiều requests, vui lòng thử lại sau.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting
+app.use('/api/users/login', authLimiter);
+app.use('/api/users/register', authLimiter);
+app.use('/api/users/forgot-password', authLimiter);
+app.use('/api/users/reset-password', authLimiter);
+
+// More lenient rate limiting for frequent API calls
+app.use('/api/chat/unread-count', frequentAPILimiter);
+app.use('/api/users/me', frequentAPILimiter);
+
+// General rate limiting for other APIs
+app.use('/api/', generalLimiter);
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roblox-shop', {
@@ -74,6 +139,10 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Error handling middleware (must be last)
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

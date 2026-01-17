@@ -8,12 +8,34 @@ const Account = require('../models/Account');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
+const { getJWTSecret } = require('../utils/auth');
+const { validatePassword, validateEmail, validateUsername, sanitizeString } = require('../utils/validation');
 
 // Register
 router.post('/register', async (req, res) => {
-  const { username, email, password } = req.body;
+  let { username, email, password } = req.body;
 
   try {
+    // Sanitize inputs
+    username = sanitizeString(username, 20);
+    email = sanitizeString(email, 100).toLowerCase();
+    password = password ? String(password) : '';
+
+    // Validate inputs
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.isValid) {
+      return res.status(400).json({ message: usernameValidation.errors[0] });
+    }
+
+    if (!validateEmail(email)) {
+      return res.status(400).json({ message: 'Email không hợp lệ' });
+    }
+
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({ message: passwordValidation.errors[0] });
+    }
+
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ message: 'Email đã tồn tại' });
 
@@ -28,7 +50,7 @@ router.post('/register', async (req, res) => {
 
     await user.save();
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret', {
+    const token = jwt.sign({ userId: user._id }, getJWTSecret(), {
       expiresIn: '7d'
     });
 
@@ -70,7 +92,7 @@ router.post('/login', async (req, res) => {
       ipAddress: req.ip || req.connection.remoteAddress
     });
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret', {
+    const token = jwt.sign({ userId: user._id }, getJWTSecret(), {
       expiresIn: '7d'
     });
 
@@ -99,7 +121,7 @@ router.get('/me', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, getJWTSecret());
     const user = await User.findById(decoded.userId).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     
@@ -132,7 +154,7 @@ router.get('/activity-log', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, getJWTSecret());
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -167,7 +189,7 @@ router.get('/balance-history', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, getJWTSecret());
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
     const skip = (page - 1) * limit;
@@ -202,11 +224,18 @@ router.put('/change-password', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const decoded = jwt.verify(token, getJWTSecret());
+    let { currentPassword, newPassword, confirmPassword } = req.body;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin' });
+    }
+
+    // Sanitize and validate new password
+    newPassword = String(newPassword);
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({ message: passwordValidation.errors[0] });
     }
 
     if (newPassword !== confirmPassword) {
@@ -430,11 +459,11 @@ if (process.env.EMAIL_USER) {
     console.log('Email transporter configured with App Password (fallback)');
   } else {
     // Other email services
-    transporter = nodemailer.createTransport({
+  transporter = nodemailer.createTransport({
       service: emailService,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD
       },
       connectionTimeout: 60000,
       greetingTimeout: 30000,
@@ -451,8 +480,8 @@ if (process.env.EMAIL_USER) {
         console.log('Email will still attempt to send, but may fail');
       } else {
         console.log('Email transporter is ready to send messages');
-      }
-    });
+    }
+  });
   }
 }
 
@@ -490,7 +519,7 @@ router.post('/forgot-password', async (req, res) => {
     // For OAuth2, transporter is created on-demand, so don't require it to exist
     // For App Password, need transporter to exist
     const isEmailConfigured = !!(process.env.EMAIL_USER && 
-                                 process.env.EMAIL_USER !== 'your_email@gmail.com' &&
+                              process.env.EMAIL_USER !== 'your_email@gmail.com' &&
                                  (useOAuth2 || (useAppPassword && transporter)));
 
     console.log('Email config check:', {
@@ -707,7 +736,7 @@ router.get('/account-history', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, getJWTSecret());
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
     const skip = (page - 1) * limit;

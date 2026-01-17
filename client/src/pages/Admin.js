@@ -37,9 +37,19 @@ function Admin() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [billCache, setBillCache] = useState({}); // Cache bill images by rechargeId
   const [loadingBill, setLoadingBill] = useState(false);
+  const [showCardInfoModal, setShowCardInfoModal] = useState(false);
+  const [selectedCardInfo, setSelectedCardInfo] = useState(null);
+  const [showCardFeeModal, setShowCardFeeModal] = useState(false);
+  const [cardFeePercent, setCardFeePercent] = useState('');
+  const [selectedRechargeForFee, setSelectedRechargeForFee] = useState(null);
   const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [voucherDiscount, setVoucherDiscount] = useState('');
   const [selectedUserForVoucher, setSelectedUserForVoucher] = useState(null);
+  // User detail modal states
+  const [showOrdersSection, setShowOrdersSection] = useState(true);
+  const [showRechargesSection, setShowRechargesSection] = useState(true);
+  const [ordersDisplayLimit, setOrdersDisplayLimit] = useState(5);
+  const [rechargesDisplayLimit, setRechargesDisplayLimit] = useState(5);
   // Pagination and search states
   const [usersPage, setUsersPage] = useState(1);
   const [usersTotalPages, setUsersTotalPages] = useState(1);
@@ -138,6 +148,9 @@ function Admin() {
   const [showGamesManagement, setShowGamesManagement] = useState(false);
   const [showGamesList, setShowGamesList] = useState(false);
   const [showAccountsTable, setShowAccountsTable] = useState(false);
+  // Recharge promotion
+  const [rechargePromotionPercent, setRechargePromotionPercent] = useState(0);
+  const [rechargePromotionInput, setRechargePromotionInput] = useState('');
 
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -172,6 +185,8 @@ function Admin() {
       setRecharges(Array.isArray(rechargesRes.data.recharges) ? rechargesRes.data.recharges : []);
       setRechargesTotalPages(rechargesRes.data.totalPages || 1);
       setStats(statsRes.data);
+      setRechargePromotionPercent(statsRes.data.rechargePromotionPercent || 0);
+      setRechargePromotionInput(statsRes.data.rechargePromotionPercent?.toString() || '0');
       setNews(Array.isArray(newsRes.data) ? newsRes.data : []);
       
       // Count pending orders and recharges (need to fetch all for accurate count)
@@ -760,31 +775,62 @@ function Admin() {
   };
 
   const handleApproveRecharge = async (rechargeId) => {
+    const recharge = recharges.find(r => r._id === rechargeId);
+    
+    // If payment method is card, show fee input modal first
+    if (recharge?.paymentMethod === 'card') {
+      setSelectedRechargeForFee(recharge);
+      setCardFeePercent('');
+      setShowCardFeeModal(true);
+      return;
+    }
+
+    // For other payment methods, approve directly
+    await approveRechargeDirectly(rechargeId);
+  };
+
+  const approveRechargeDirectly = async (rechargeId, cardFeePercent = null) => {
     const token = localStorage.getItem('token');
     try {
+      const requestData = {};
+      if (cardFeePercent !== null) {
+        requestData.cardFeePercent = parseFloat(cardFeePercent);
+      }
+      
       const res = await api.put(`/api/admin/recharges/${rechargeId}/approve`,
-        {},
+        requestData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       alert('Duyệt nạp tiền thành công!');
+      setShowCardFeeModal(false);
+      setSelectedRechargeForFee(null);
+      setCardFeePercent('');
       const updatedRecharge = res.data?.recharge;
       if (updatedRecharge) {
-        let decreasedPending = false;
+        // Check if it was pending before update
         setRecharges(prev => {
+          const currentRecharge = prev.find(r => r._id === rechargeId);
+          const wasPending = currentRecharge?.status === 'Đang xử lí';
+          
           const next = prev.map(r => {
             if (r._id === rechargeId) {
-              if (r.status === 'Đang xử lí' && updatedRecharge.status === 'Hoàn thành') {
-                decreasedPending = true;
+              // Preserve userId if it exists in current state but not in updatedRecharge
+              const mergedRecharge = { ...r, ...updatedRecharge };
+              if (!mergedRecharge.userId && r.userId) {
+                mergedRecharge.userId = r.userId;
               }
-              return { ...r, ...updatedRecharge };
+              return mergedRecharge;
             }
             return r;
           });
-          return next;
-        });
-        if (decreasedPending) {
+          
+          // Decrease pending count if it was pending
+          if (wasPending) {
           setPendingRechargesCount(count => Math.max(0, count - 1));
         }
+          
+          return next;
+        });
       } else {
         // Fallback: reload if server didn't send updated recharge
       fetchData();
@@ -800,6 +846,30 @@ function Admin() {
     setShowRejectModal(true);
   };
 
+  const handleUpdateRechargePromotion = async () => {
+    const token = localStorage.getItem('token');
+    const percent = parseFloat(rechargePromotionInput);
+    
+    if (isNaN(percent) || percent < 0 || percent > 100) {
+      alert('Phần trăm khuyến mãi phải từ 0 đến 100');
+      return;
+    }
+
+    try {
+      await api.put('/api/admin/settings/recharge-promotion', {
+        promotionPercent: percent
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setRechargePromotionPercent(percent);
+      alert('Đã cập nhật khuyến mãi nạp tiền thành công!');
+    } catch (error) {
+      console.error('Error updating recharge promotion:', error);
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật khuyến mãi');
+    }
+  };
+
   const confirmRejectRecharge = async () => {
     if (!rejectionReason.trim()) {
       alert('Vui lòng nhập lý do từ chối');
@@ -813,11 +883,30 @@ function Admin() {
       );
       alert('Từ chối nạp tiền thành công!');
       setShowRejectModal(false);
+      const rechargeId = selectedRechargeId;
       setSelectedRechargeId(null);
       setRejectionReason('');
       const updatedRecharge = res.data?.recharge;
       if (updatedRecharge) {
-        setRecharges(prev => prev.map(r => r._id === selectedRechargeId ? { ...r, ...updatedRecharge } : r));
+        // Check if it was pending before update
+        setRecharges(prev => {
+          const currentRecharge = prev.find(r => r._id === rechargeId);
+          const wasPending = currentRecharge?.status === 'Đang xử lí';
+          
+          const next = prev.map(r => {
+            if (r._id === rechargeId) {
+              return { ...r, ...updatedRecharge };
+            }
+            return r;
+          });
+          
+          // Decrease pending count if it was pending
+          if (wasPending) {
+            setPendingRechargesCount(count => Math.max(0, count - 1));
+          }
+          
+          return next;
+        });
       } else {
       fetchData();
       }
@@ -827,6 +916,20 @@ function Admin() {
   };
 
   const handleViewBill = async (rechargeId) => {
+    const recharge = recharges.find(r => r._id === rechargeId);
+    
+    // If payment method is card, show card info modal instead
+    if (recharge?.paymentMethod === 'card') {
+      setSelectedCardInfo({
+        cardType: recharge.cardType || 'N/A',
+        cardCode: recharge.cardCode || 'N/A',
+        cardSerial: recharge.cardSerial || 'N/A'
+      });
+      setShowCardInfoModal(true);
+      return;
+    }
+
+    // For other payment methods, show bill image
     // Check cache first
     if (billCache[rechargeId]) {
       setSelectedBill(billCache[rechargeId]);
@@ -1153,6 +1256,11 @@ function Admin() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUserDetails(response.data);
+      // Reset display limits and sections when opening modal
+      setOrdersDisplayLimit(5);
+      setRechargesDisplayLimit(5);
+      setShowOrdersSection(true);
+      setShowRechargesSection(true);
       setShowUserDetailModal(true);
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra khi tải thông tin user');
@@ -2283,6 +2391,68 @@ function Admin() {
             </div>
           </div>
 
+          <div style={{ 
+            background: 'white', 
+            border: '1px solid #ddd', 
+            borderRadius: '8px', 
+            padding: '1.5rem', 
+            marginBottom: '1.5rem' 
+          }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#333' }}>🎁 Khuyến Mãi Nạp Tiền</h3>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label style={{ fontWeight: 'bold', color: '#666' }}>Phần trăm khuyến mãi:</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={rechargePromotionInput}
+                  onChange={(e) => setRechargePromotionInput(e.target.value)}
+                  style={{
+                    padding: '0.5rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    width: '100px',
+                    fontSize: '1rem'
+                  }}
+                  placeholder="0"
+                />
+                <span style={{ color: '#666' }}>%</span>
+              </div>
+              <button
+                onClick={handleUpdateRechargePromotion}
+                style={{
+                  padding: '0.5rem 1.5rem',
+                  background: '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem'
+                }}
+              >
+                Cập Nhật
+              </button>
+              {rechargePromotionPercent > 0 && (
+                <div style={{ 
+                  padding: '0.5rem 1rem', 
+                  background: 'linear-gradient(135deg, #4CAF50, #45a049)', 
+                  color: 'white', 
+                  borderRadius: '4px',
+                  fontWeight: 'bold'
+                }}>
+                  Hiện tại: {rechargePromotionPercent}% khuyến mãi
+                </div>
+              )}
+            </div>
+            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#666', fontStyle: 'italic' }}>
+              Khi nạp tiền, người dùng sẽ được cộng thêm {rechargePromotionPercent > 0 ? rechargePromotionPercent : '0'}% vào số tiền nạp.
+              Ví dụ: Nạp 100.000đ với {rechargePromotionPercent > 0 ? rechargePromotionPercent : '0'}% khuyến mãi = {rechargePromotionPercent > 0 ? (100000 + Math.floor(100000 * rechargePromotionPercent / 100)).toLocaleString('vi-VN') : '100.000'}đ
+            </p>
+          </div>
+
           <div className="table-controls">
             <div className="control-left">
               <select
@@ -2354,13 +2524,40 @@ function Admin() {
                         {recharge.userId?.username || 'N/A'}
                       </td>
                       <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
-                        {recharge.amount.toLocaleString('vi-VN')}đ
+                        {(recharge.cardFee > 0 || recharge.bonusAmount > 0) ? (
+                          <div>
+                            {/* Show original amount with strikethrough if there's fee or bonus */}
+                            <div style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.85rem' }}>
+                              {recharge.originalAmount?.toLocaleString('vi-VN') || recharge.amount.toLocaleString('vi-VN')}đ
+                  </div>
+                            {/* Show actual amount received */}
+                            <div style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                              +{recharge.amount.toLocaleString('vi-VN')}đ
+                            </div>
+                            {/* Show fee if exists */}
+                            {recharge.cardFee > 0 && (
+                              <div style={{ fontSize: '0.75rem', color: '#d32f2f' }}>
+                                (-{recharge.cardFee.toLocaleString('vi-VN')}đ phí {recharge.cardFeePercent || 0}%)
+                              </div>
+                            )}
+                            {/* Show bonus if exists */}
+                            {recharge.bonusAmount > 0 && (
+                              <div style={{ fontSize: '0.75rem', color: '#4CAF50' }}>
+                                (+{recharge.bonusAmount.toLocaleString('vi-VN')}đ khuyến mãi {recharge.promotionPercent || 0}%)
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>{recharge.amount.toLocaleString('vi-VN')}đ</div>
+                        )}
                       </td>
                       <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
                   {recharge.paymentMethod === 'bank'
                     ? 'Chuyển Khoản'
                     : recharge.paymentMethod === 'momo'
                       ? 'MoMo'
+                      : recharge.paymentMethod === 'card'
+                        ? 'Thẻ Cào'
                       : 'Thẻ Siêu Rẻ'}
                       </td>
                       <td style={{ padding: '0.75rem', border: '1px solid #ddd', whiteSpace: 'nowrap' }}>
@@ -2401,6 +2598,23 @@ function Admin() {
                     </>
                   )}
                   {recharge.status === 'Hoàn thành' && (
+                    <button 
+                      className="btn-delete"
+                      onClick={() => handleDeleteRecharge(recharge._id)}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        background: '#f44336',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      Xóa
+                    </button>
+                  )}
+                  {recharge.status === 'Từ chối' && (
                     <button 
                       className="btn-delete"
                       onClick={() => handleDeleteRecharge(recharge._id)}
@@ -3397,6 +3611,91 @@ function Admin() {
         </div>
       )}
 
+      {showCardInfoModal && selectedCardInfo && (
+        <div className="modal-overlay" onClick={() => setShowCardInfoModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <h2>Thông Tin Thẻ Cào</h2>
+            <div style={{ marginTop: '1.5rem', lineHeight: '2' }}>
+              <p><strong>Loại thẻ:</strong> {selectedCardInfo.cardType}</p>
+              <p><strong>Mã:</strong> {selectedCardInfo.cardCode}</p>
+              <p><strong>Serial:</strong> {selectedCardInfo.cardSerial}</p>
+            </div>
+            <div className="modal-actions">
+              <button onClick={() => setShowCardInfoModal(false)} className="btn-cancel">Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCardFeeModal && selectedRechargeForFee && (
+        <div className="modal-overlay" onClick={() => {
+          setShowCardFeeModal(false);
+          setSelectedRechargeForFee(null);
+          setCardFeePercent('');
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <h2>Nhập Phí Thẻ Cào</h2>
+            <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+              <p><strong>Số tiền nạp:</strong> {selectedRechargeForFee.originalAmount?.toLocaleString('vi-VN') || selectedRechargeForFee.amount.toLocaleString('vi-VN')}đ</p>
+            </div>
+            <div className="form-group">
+              <label>Phí thẻ cào (%):</label>
+              <input
+                type="number"
+                value={cardFeePercent}
+                onChange={(e) => setCardFeePercent(e.target.value)}
+                placeholder="Nhập % phí (ví dụ: 20)"
+                min="0"
+                max="100"
+                step="0.1"
+                style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+              />
+            </div>
+            {cardFeePercent && !isNaN(parseFloat(cardFeePercent)) && parseFloat(cardFeePercent) >= 0 && (
+              <div style={{ 
+                marginTop: '1rem', 
+                padding: '1rem', 
+                background: '#f5f5f5', 
+                borderRadius: '8px',
+                border: '1px solid #ddd'
+              }}>
+                <p style={{ margin: '0 0 0.5rem 0', color: '#666' }}><strong>Kết quả:</strong></p>
+                <p style={{ margin: '0.25rem 0', color: '#333' }}>
+                  Số tiền nạp: <span style={{ textDecoration: 'line-through', color: '#999' }}>
+                    {selectedRechargeForFee.originalAmount?.toLocaleString('vi-VN') || selectedRechargeForFee.amount.toLocaleString('vi-VN')}đ
+                  </span>
+                </p>
+                <p style={{ margin: '0.25rem 0', color: '#d32f2f' }}>
+                  Phí ({parseFloat(cardFeePercent)}%): -{Math.floor((selectedRechargeForFee.originalAmount || selectedRechargeForFee.amount) * parseFloat(cardFeePercent) / 100).toLocaleString('vi-VN')}đ
+                </p>
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '1.1rem', fontWeight: 'bold', color: '#4CAF50' }}>
+                  Số tiền nhận được: {((selectedRechargeForFee.originalAmount || selectedRechargeForFee.amount) - Math.floor((selectedRechargeForFee.originalAmount || selectedRechargeForFee.amount) * parseFloat(cardFeePercent) / 100)).toLocaleString('vi-VN')}đ
+                </p>
+              </div>
+            )}
+            <div className="modal-actions">
+              <button 
+                onClick={async () => {
+                  if (!cardFeePercent || isNaN(parseFloat(cardFeePercent)) || parseFloat(cardFeePercent) < 0) {
+                    alert('Vui lòng nhập phí hợp lệ');
+                    return;
+                  }
+                  await approveRechargeDirectly(selectedRechargeForFee._id, cardFeePercent);
+                }} 
+                className="btn-confirm"
+              >
+                Duyệt
+              </button>
+              <button onClick={() => {
+                setShowCardFeeModal(false);
+                setSelectedRechargeForFee(null);
+                setCardFeePercent('');
+              }} className="btn-cancel">Hủy</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showOrderDetailModal && selectedOrder && (
         <div className="modal-overlay" onClick={() => setShowOrderDetailModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
@@ -3518,18 +3817,25 @@ function Admin() {
             </div>
             
             <div style={{ marginTop: '1rem' }}>
-              <h3>📋 Lịch Sử Đơn Hàng</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: '0.5rem' }}
+                   onClick={() => setShowOrdersSection(!showOrdersSection)}>
+                <h3 style={{ margin: 0 }}>📋 Lịch Sử Đơn Hàng ({userDetails.orders.length})</h3>
+                <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{showOrdersSection ? '−' : '+'}</span>
+              </div>
+              {showOrdersSection && (
+                <>
               {userDetails.orders.length === 0 ? (
                 <p style={{ color: '#999', padding: '1rem' }}>Chưa có đơn hàng nào</p>
               ) : (
-                <div style={{ marginTop: '0.5rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1.5fr', background: '#f5f5f5', padding: '0.8rem', fontWeight: 'bold', borderBottom: '1px solid #ddd' }}>
+                    <>
+                      <div style={{ marginTop: '0.5rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', maxHeight: '400px', overflowY: 'auto' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1.5fr', background: '#f5f5f5', padding: '0.8rem', fontWeight: 'bold', borderBottom: '1px solid #ddd', position: 'sticky', top: 0, zIndex: 10 }}>
                     <div>Ngày</div>
                     <div>Đơn Hàng</div>
                     <div>Số Tiền</div>
                     <div>Trạng Thái</div>
                   </div>
-                  {userDetails.orders.map(order => (
+                        {userDetails.orders.slice(0, ordersDisplayLimit).map(order => (
                     <div key={order._id} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1.5fr', padding: '0.8rem', borderBottom: '1px solid #eee' }}>
                       <div>{formatDate(order.createdAt)}</div>
                       <div>{order.orderType === 'service' ? `${order.serviceName} - ${order.gameName}` : 'Đơn hàng sản phẩm'}</div>
@@ -3554,36 +3860,110 @@ function Admin() {
                     </div>
                   ))}
                 </div>
+                      {userDetails.orders.length > ordersDisplayLimit && (
+                        <button
+                          onClick={() => setOrdersDisplayLimit(userDetails.orders.length)}
+                          style={{
+                            marginTop: '0.5rem',
+                            padding: '0.5rem 1rem',
+                            background: '#2196F3',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          Xem thêm ({userDetails.orders.length - ordersDisplayLimit} đơn hàng)
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
 
             <div style={{ marginTop: '2rem' }}>
-              <h3>💰 Lịch Sử Nạp Tiền</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: '0.5rem' }}
+                   onClick={() => setShowRechargesSection(!showRechargesSection)}>
+                <h3 style={{ margin: 0 }}>💰 Lịch Sử Nạp Tiền ({userDetails.recharges.length})</h3>
+                <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{showRechargesSection ? '−' : '+'}</span>
+              </div>
+              {showRechargesSection && (
+                <>
               {userDetails.recharges.length === 0 ? (
                 <p style={{ color: '#999', padding: '1rem' }}>Chưa có lịch sử nạp tiền nào</p>
               ) : (
-                <div style={{ marginTop: '0.5rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr', background: '#f5f5f5', padding: '0.8rem', fontWeight: 'bold', borderBottom: '1px solid #ddd' }}>
+                    <>
+                      <div style={{ marginTop: '0.5rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', maxHeight: '400px', overflowY: 'auto' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr', background: '#f5f5f5', padding: '0.8rem', fontWeight: 'bold', borderBottom: '1px solid #ddd', position: 'sticky', top: 0, zIndex: 10 }}>
                     <div>Ngày</div>
                     <div>Số Tiền</div>
                     <div>Phương Thức</div>
                     <div>Trạng Thái</div>
                   </div>
-                  {userDetails.recharges.map(recharge => (
+                        {userDetails.recharges.slice(0, rechargesDisplayLimit).map(recharge => (
                     <div key={recharge._id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr', padding: '0.8rem', borderBottom: '1px solid #eee' }}>
                       <div>{formatDate(recharge.createdAt)}</div>
+                            <div>
+                              {recharge.status === 'Hoàn thành' && (recharge.cardFee > 0 || recharge.bonusAmount > 0) ? (
+                                <div>
+                                  {(recharge.cardFee > 0 || recharge.bonusAmount > 0) && (
+                                    <div style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.85rem' }}>
+                                      {recharge.originalAmount?.toLocaleString('vi-VN') || recharge.amount?.toLocaleString('vi-VN') || '0'}đ
+                                    </div>
+                                  )}
+                                  <div style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                                    +{recharge.amount?.toLocaleString('vi-VN') || '0'}đ
+                                  </div>
+                                  {recharge.cardFee > 0 && (
+                                    <div style={{ fontSize: '0.75rem', color: '#d32f2f' }}>
+                                      (-{recharge.cardFee?.toLocaleString('vi-VN') || '0'}đ phí {recharge.cardFeePercent || 0}%)
+                                    </div>
+                                  )}
+                                  {recharge.bonusAmount > 0 && (
+                                    <div style={{ fontSize: '0.75rem', color: '#4CAF50' }}>
+                                      (+{recharge.bonusAmount?.toLocaleString('vi-VN') || '0'}đ khuyến mãi {recharge.promotionPercent || 0}%)
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
                       <div>{recharge.amount?.toLocaleString('vi-VN') || '0'}đ</div>
+                              )}
+                            </div>
                       <div>
                         {recharge.paymentMethod === 'bank'
                           ? 'Chuyển Khoản'
                           : recharge.paymentMethod === 'momo'
                             ? 'MoMo'
+                                  : recharge.paymentMethod === 'card'
+                                    ? 'Thẻ Cào'
                             : 'Thẻ Siêu Rẻ'}
                       </div>
                       <div>{recharge.status}</div>
                     </div>
                   ))}
                 </div>
+                      {userDetails.recharges.length > rechargesDisplayLimit && (
+                        <button
+                          onClick={() => setRechargesDisplayLimit(userDetails.recharges.length)}
+                          style={{
+                            marginTop: '0.5rem',
+                            padding: '0.5rem 1rem',
+                            background: '#2196F3',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          Xem thêm ({userDetails.recharges.length - rechargesDisplayLimit} giao dịch)
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
 

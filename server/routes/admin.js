@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { validateObjectId } = require('../utils/validation');
+const { getJWTSecret } = require('../utils/auth');
 const Order = require('../models/Order');
 const Recharge = require('../models/Recharge');
 const Settings = require('../models/Settings');
@@ -24,7 +26,7 @@ const authenticateAdmin = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, getJWTSecret());
     const user = await User.findById(decoded.userId);
     if (!user || user.role !== 'admin') {
       return res.status(403).json({ message: 'Không có quyền truy cập' });
@@ -72,6 +74,10 @@ router.get('/users', authenticateAdmin, async (req, res) => {
 // Get user by ID
 router.get('/users/:id', authenticateAdmin, async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
     const user = await User.findById(req.params.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
@@ -83,12 +89,17 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
 // Get user orders and recharges (optimized with limits)
 router.get('/users/:id/details', authenticateAdmin, async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
     const userId = req.params.id;
     const user = await User.findById(userId).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
     // Limit to last 50 orders and 50 recharges for performance
+    // Include deleted recharges in user detail view (for history)
     const [orders, recharges] = await Promise.all([
       Order.find({ userId }).sort({ createdAt: -1 }).limit(50).lean(),
       Recharge.find({ userId }).select('-billImage').sort({ createdAt: -1 }).limit(50).lean()
@@ -183,6 +194,10 @@ router.post('/users/:id/voucher', authenticateAdmin, async (req, res) => {
 // Delete user and related data
 router.delete('/users/:id', authenticateAdmin, async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
     const userId = req.params.id;
     const user = await User.findByIdAndDelete(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -312,7 +327,8 @@ router.get('/stats', authenticateAdmin, async (req, res) => {
     res.json({
       totalUsers,
       totalOrders,
-      totalRevenue
+      totalRevenue,
+      rechargePromotionPercent: settings.rechargePromotionPercent || 0
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -492,6 +508,30 @@ router.post('/revenue-stats/reset', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Update recharge promotion percent
+router.put('/settings/recharge-promotion', authenticateAdmin, async (req, res) => {
+  try {
+    const { promotionPercent } = req.body;
+    const percent = parseFloat(promotionPercent);
+    
+    if (isNaN(percent) || percent < 0 || percent > 100) {
+      return res.status(400).json({ message: 'Phần trăm khuyến mãi phải từ 0 đến 100' });
+    }
+
+    const settings = await Settings.getSettings();
+    settings.rechargePromotionPercent = percent;
+    settings.updatedAt = new Date();
+    await settings.save();
+    
+    res.json({ 
+      message: 'Đã cập nhật khuyến mãi nạp tiền',
+      rechargePromotionPercent: settings.rechargePromotionPercent
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get announcement
 router.get('/announcement', authenticateAdmin, async (req, res) => {
   try {
@@ -569,6 +609,9 @@ router.get('/recharges', authenticateAdmin, async (req, res) => {
       query.status = statusFilter;
     }
 
+    // Filter out deleted recharges in admin view
+    query.deleted = { $ne: true };
+
     const [recharges, total] = await Promise.all([
       Recharge.find(query)
         .select('-billImage')
@@ -608,50 +651,110 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Add balance
-    const initialBalance = user.balance || 0;
-    const newBalance = initialBalance + recharge.amount;
-    user.balance = newBalance;
-    await user.save();
+    // Get card fee percent if provided (for card payment method)
+    const cardFeePercent = req.body.cardFeePercent ? parseFloat(req.body.cardFeePercent) : null;
+    if (recharge.paymentMethod === 'card' && cardFeePercent === null) {
+      return res.status(400).json({ message: 'Vui lòng nhập phí thẻ cào' });
+    }
 
-    // Create balance history
-    await BalanceHistory.create({
-      userId: user._id,
-      initialBalance,
-      changeAmount: recharge.amount,
-      currentBalance: newBalance,
-      reason: `Nạp tiền tự động qua ${
-        recharge.paymentMethod === 'bank'
-          ? 'Chuyển Khoản'
-          : recharge.paymentMethod === 'momo'
-            ? 'MoMo'
-            : 'Thẻ Siêu Rẻ'
-      } (#${recharge._id.toString().substring(0, 8)})`
-    });
+    // Get promotion percent from settings
+    const settings = await Settings.getSettings();
+    const promotionPercent = settings.rechargePromotionPercent || 0;
 
-    // Log activity
-    const ActivityLog = require('../models/ActivityLog');
-    await ActivityLog.create({
-      userId: user._id,
-      action: `Nạp tiền ${recharge.amount.toLocaleString('vi-VN')}đ qua ${
-        recharge.paymentMethod === 'bank'
-          ? 'Chuyển Khoản'
-          : recharge.paymentMethod === 'momo'
-            ? 'MoMo'
-            : 'Thẻ Siêu Rẻ'
-      }`
-    });
+    // Calculate amounts
+    let originalAmount = recharge.originalAmount || recharge.amount;
+    let cardFee = 0;
+    let cardFeePercentValue = 0;
 
-    // Update recharge status
+    // If card payment, calculate and deduct fee first
+    if (recharge.paymentMethod === 'card' && cardFeePercent !== null) {
+      cardFeePercentValue = cardFeePercent;
+      cardFee = Math.floor(originalAmount * (cardFeePercent / 100));
+      originalAmount = originalAmount - cardFee; // Amount after fee deduction
+    }
+
+    // Calculate bonus amount (on the amount after fee deduction)
+    const bonusAmount = Math.floor(originalAmount * (promotionPercent / 100));
+    const totalAmount = originalAmount + bonusAmount; // Final amount user receives
+
+    // Update recharge with promotion and fee info
+    recharge.originalAmount = recharge.originalAmount || recharge.amount; // Keep original recharge amount
+    recharge.bonusAmount = bonusAmount;
+    recharge.promotionPercent = promotionPercent;
+    if (recharge.paymentMethod === 'card') {
+      recharge.cardFee = cardFee;
+      recharge.cardFeePercent = cardFeePercentValue;
+    }
+    recharge.amount = totalAmount; // Final amount user receives (after fee deduction and bonus)
     recharge.status = 'Hoàn thành';
     recharge.processedAt = new Date();
     await recharge.save();
 
-    // Add to revenue
-    const settings = await Settings.getSettings();
-    settings.totalRevenue = (settings.totalRevenue || 0) + recharge.amount;
+    // Add balance (including bonus)
+    const initialBalance = user.balance || 0;
+    const newBalance = initialBalance + totalAmount;
+    user.balance = newBalance;
+    await user.save();
+
+    // Create balance history
+    const getPaymentMethodName = (method) => {
+      if (method === 'bank') return 'Chuyển Khoản';
+      if (method === 'momo') return 'MoMo';
+      if (method === 'card') return 'Thẻ Cào';
+      return 'Thẻ Siêu Rẻ';
+    };
+
+    // Build reason text with fee and bonus info
+    let reasonText = '';
+    const originalRechargeAmount = recharge.originalAmount || recharge.amount;
+    
+    if (recharge.paymentMethod === 'card' && cardFee > 0) {
+      reasonText = `Nạp tiền ${originalRechargeAmount.toLocaleString('vi-VN')}đ - Phí ${cardFee.toLocaleString('vi-VN')}đ (${cardFeePercentValue}%)`;
+      if (bonusAmount > 0) {
+        reasonText += ` + Khuyến mãi ${bonusAmount.toLocaleString('vi-VN')}đ (${promotionPercent}%)`;
+      }
+      reasonText += ` = ${totalAmount.toLocaleString('vi-VN')}đ qua ${getPaymentMethodName(recharge.paymentMethod)} (#${recharge._id.toString().substring(0, 8)})`;
+    } else if (bonusAmount > 0) {
+      reasonText = `Nạp tiền ${originalAmount.toLocaleString('vi-VN')}đ + Khuyến mãi ${bonusAmount.toLocaleString('vi-VN')}đ (${promotionPercent}%) qua ${getPaymentMethodName(recharge.paymentMethod)} (#${recharge._id.toString().substring(0, 8)})`;
+    } else {
+      reasonText = `Nạp tiền ${originalAmount.toLocaleString('vi-VN')}đ qua ${getPaymentMethodName(recharge.paymentMethod)} (#${recharge._id.toString().substring(0, 8)})`;
+    }
+
+    await BalanceHistory.create({
+      userId: user._id,
+      initialBalance,
+      changeAmount: totalAmount,
+      currentBalance: newBalance,
+      reason: reasonText
+    });
+
+    // Log activity
+    const ActivityLog = require('../models/ActivityLog');
+    let activityText = '';
+    if (recharge.paymentMethod === 'card' && cardFee > 0) {
+      activityText = `Nạp tiền ${originalRechargeAmount.toLocaleString('vi-VN')}đ - Phí ${cardFee.toLocaleString('vi-VN')}đ (${cardFeePercentValue}%)`;
+      if (bonusAmount > 0) {
+        activityText += ` + Khuyến mãi ${bonusAmount.toLocaleString('vi-VN')}đ (${promotionPercent}%)`;
+      }
+      activityText += ` = ${totalAmount.toLocaleString('vi-VN')}đ qua ${getPaymentMethodName(recharge.paymentMethod)}`;
+    } else if (bonusAmount > 0) {
+      activityText = `Nạp tiền ${originalAmount.toLocaleString('vi-VN')}đ + Khuyến mãi ${bonusAmount.toLocaleString('vi-VN')}đ (${promotionPercent}%) = ${totalAmount.toLocaleString('vi-VN')}đ qua ${getPaymentMethodName(recharge.paymentMethod)}`;
+    } else {
+      activityText = `Nạp tiền ${totalAmount.toLocaleString('vi-VN')}đ qua ${getPaymentMethodName(recharge.paymentMethod)}`;
+    }
+
+    await ActivityLog.create({
+      userId: user._id,
+      action: activityText
+    });
+
+    // Add to revenue (original recharge amount, not after fee deduction, not bonus)
+    settings.totalRevenue = (settings.totalRevenue || 0) + originalRechargeAmount;
     settings.updatedAt = new Date();
     await settings.save();
+
+    // Populate userId before sending response
+    await recharge.populate('userId', 'username email');
 
     res.json({
       message: 'Duyệt nạp tiền thành công',
@@ -708,11 +811,16 @@ router.delete('/recharges/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Recharge request not found' });
     }
     
-    if (recharge.status !== 'Hoàn thành') {
-      return res.status(400).json({ message: 'Chỉ có thể xóa yêu cầu nạp tiền đã hoàn thành' });
+    // Allow deletion for "Hoàn thành" and "Từ chối" status
+    if (recharge.status !== 'Hoàn thành' && recharge.status !== 'Từ chối') {
+      return res.status(400).json({ message: 'Chỉ có thể xóa yêu cầu nạp tiền đã hoàn thành hoặc bị từ chối' });
     }
     
-    await Recharge.findByIdAndDelete(req.params.id);
+    // Soft delete: mark as deleted instead of actually deleting
+    recharge.deleted = true;
+    recharge.deletedAt = new Date();
+    await recharge.save();
+    
     res.json({ message: 'Đã xóa yêu cầu nạp tiền thành công' });
   } catch (error) {
     res.status(500).json({ message: error.message });

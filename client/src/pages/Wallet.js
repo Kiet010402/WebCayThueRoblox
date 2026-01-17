@@ -131,7 +131,9 @@ function Wallet() {
                           ? 'Chuyển Khoản'
                           : tx.paymentMethod === 'momo'
                             ? 'MoMo'
-                            : 'Thẻ Siêu Rẻ'
+                            : tx.paymentMethod === 'card'
+                              ? 'Thẻ Cào'
+                              : 'Thẻ Siêu Rẻ'
                       }
                     </div>
                     <div className="tx-date">{formatDate(tx.createdAt)}</div>
@@ -142,7 +144,34 @@ function Wallet() {
                     )}
                   </div>
                   <div className="tx-amount income">
-                    +{tx.amount.toLocaleString('vi-VN')} đ
+                    {tx.status === 'Hoàn thành' && (tx.cardFee > 0 || tx.bonusAmount > 0) ? (
+                      <div>
+                        {/* Show original amount with strikethrough if there's fee or bonus */}
+                        {(tx.cardFee > 0 || tx.bonusAmount > 0) && (
+                          <div style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.85rem' }}>
+                            {tx.originalAmount?.toLocaleString('vi-VN') || tx.amount.toLocaleString('vi-VN')} đ
+                          </div>
+                        )}
+                        {/* Show actual amount received */}
+                        <div style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                          +{tx.amount.toLocaleString('vi-VN')} đ
+                        </div>
+                        {/* Show fee if exists */}
+                        {tx.cardFee > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: '#d32f2f', marginTop: '0.25rem' }}>
+                            (-{tx.cardFee.toLocaleString('vi-VN')} đ phí {tx.cardFeePercent || 0}%)
+                          </div>
+                        )}
+                        {/* Show bonus if exists */}
+                        {tx.bonusAmount > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: '#4CAF50', marginTop: '0.25rem' }}>
+                            (+{tx.bonusAmount.toLocaleString('vi-VN')} đ khuyến mãi {tx.promotionPercent || 0}%)
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div>+{tx.amount.toLocaleString('vi-VN')} đ</div>
+                    )}
                   </div>
                   <div className={`tx-status status-${tx.status.replace(/\s+/g, '')}`}>
                     {getStatusIcon(tx.status)} {tx.status}

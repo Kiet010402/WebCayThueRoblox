@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const BlindBag = require('../models/BlindBag');
+const { validateObjectId } = require('../utils/validation');
+const { getJWTSecret } = require('../utils/auth');
 const BlindBagAccount = require('../models/BlindBagAccount');
 const User = require('../models/User');
 const Order = require('../models/Order');
@@ -16,7 +18,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Token không tồn tại' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'secret', (err, decoded) => {
+  jwt.verify(token, getJWTSecret(), (err, decoded) => {
     if (err) {
       return res.status(403).json({ message: 'Token không hợp lệ' });
     }
@@ -51,6 +53,10 @@ router.get('/', async (req, res) => {
 // Get blind bag by ID (public)
 router.get('/:id', async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid blind bag ID' });
+    }
     const blindBag = await BlindBag.findById(req.params.id);
     if (!blindBag) {
       return res.status(404).json({ message: 'Túi mù không tồn tại' });
@@ -64,6 +70,10 @@ router.get('/:id', async (req, res) => {
 // Get blind bag stats (public)
 router.get('/:id/stats', async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid blind bag ID' });
+    }
     const blindBag = await BlindBag.findById(req.params.id);
     if (!blindBag) {
       return res.status(404).json({ message: 'Túi mù không tồn tại' });
@@ -142,6 +152,10 @@ router.post('/', authenticateToken, checkAdmin, async (req, res) => {
 // Update blind bag (admin only)
 router.put('/:id', authenticateToken, checkAdmin, async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid blind bag ID' });
+    }
     const { game, premiumRate, image, info, originalPrice, discountedPrice } = req.body;
 
     const updateData = {};
@@ -189,6 +203,10 @@ router.put('/:id', authenticateToken, checkAdmin, async (req, res) => {
 // Delete blind bag (admin only)
 router.delete('/:id', authenticateToken, checkAdmin, async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid blind bag ID' });
+    }
     const blindBag = await BlindBag.findById(req.params.id);
     if (!blindBag) {
       return res.status(404).json({ message: 'Túi mù không tồn tại' });

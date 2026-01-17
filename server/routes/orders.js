@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Order = require('../models/Order');
+const { getJWTSecret } = require('../utils/auth');
 const User = require('../models/User');
 const BalanceHistory = require('../models/BalanceHistory');
 const Voucher = require('../models/Voucher');
+const { validateObjectId } = require('../utils/validation');
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -15,7 +17,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Token không tồn tại' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'secret', (err, decoded) => {
+  jwt.verify(token, getJWTSecret(), (err, decoded) => {
     if (err) {
       return res.status(403).json({ message: 'Token không hợp lệ' });
     }
@@ -275,6 +277,10 @@ router.post('/', authenticateToken, async (req, res) => {
 // Get order by ID
 router.get('/:id', async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
     res.json(order);
@@ -286,6 +292,10 @@ router.get('/:id', async (req, res) => {
 // Update order status
 router.put('/:id', async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
     const order = await Order.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     res.json(order);

@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Recharge = require('../models/Recharge');
 const User = require('../models/User');
+const { getJWTSecret } = require('../utils/auth');
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -13,7 +14,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Token không tồn tại' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'secret', (err, decoded) => {
+  jwt.verify(token, getJWTSecret(), (err, decoded) => {
     if (err) {
       return res.status(403).json({ message: 'Token không hợp lệ' });
     }
@@ -25,7 +26,7 @@ const authenticateToken = (req, res, next) => {
 // Create recharge request
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { amount, paymentMethod, billImage } = req.body;
+    const { amount, paymentMethod, billImage, cardType, cardCode, cardSerial } = req.body;
 
     const amountNum = parseInt(amount);
     if (!amountNum || isNaN(amountNum) || amountNum < 5000) {
@@ -35,22 +36,47 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Số tiền tối đa là 10.000.000đ' });
     }
 
-    if (!billImage || typeof billImage !== 'string') {
-      return res.status(400).json({ message: 'Vui lòng upload hình bill' });
+    // Validate based on payment method
+    if (paymentMethod === 'card') {
+      if (!cardType || !cardCode || !cardSerial) {
+        return res.status(400).json({ message: 'Vui lòng nhập đầy đủ thông tin thẻ cào' });
+      }
+      if (!['Vinaphone', 'Viettel', 'Mobifone', 'Zing', 'Garena'].includes(cardType)) {
+        return res.status(400).json({ message: 'Loại thẻ không hợp lệ' });
+      }
+    } else {
+      if (!billImage || typeof billImage !== 'string') {
+        return res.status(400).json({ message: 'Vui lòng upload hình bill' });
+      }
+      // Check if billImage is a valid base64 string
+      if (billImage.length > 10 * 1024 * 1024) { // 10MB limit for base64
+        return res.status(400).json({ message: 'Kích thước ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 5MB' });
+      }
     }
 
-    // Check if billImage is a valid base64 string
-    if (billImage.length > 10 * 1024 * 1024) { // 10MB limit for base64
-      return res.status(400).json({ message: 'Kích thước ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 5MB' });
-    }
-
-    const recharge = new Recharge({
+    const rechargeData = {
       userId: req.userId,
       amount: amountNum,
+      originalAmount: amountNum, // Store original amount before promotion
+      bonusAmount: 0, // Will be calculated when approved
+      promotionPercent: 0, // Will be set when approved
       paymentMethod,
-      billImage,
       status: 'Đang xử lí'
-    });
+    };
+
+    if (paymentMethod === 'card') {
+      rechargeData.cardType = cardType;
+      rechargeData.cardCode = cardCode;
+      rechargeData.cardSerial = cardSerial;
+    } else {
+      rechargeData.billImage = billImage;
+      // Don't set cardType for non-card payments (leave undefined)
+      delete rechargeData.cardType;
+      delete rechargeData.cardCode;
+      delete rechargeData.cardSerial;
+    }
+
+    const recharge = new Recharge(rechargeData);
 
     const newRecharge = await recharge.save();
     res.status(201).json(newRecharge);
@@ -97,7 +123,8 @@ router.get('/top-month', async (req, res) => {
       {
         $match: {
           status: 'Hoàn thành',
-          createdAt: { $gte: startOfMonth }
+          createdAt: { $gte: startOfMonth },
+          deleted: { $ne: true }
         }
       },
       {

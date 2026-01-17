@@ -13,6 +13,12 @@ const settingsSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  rechargePromotionPercent: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
   updatedAt: {
     type: Date,
     default: Date.now

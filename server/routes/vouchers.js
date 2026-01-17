@@ -12,7 +12,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Token không tồn tại' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'secret', (err, decoded) => {
+  jwt.verify(token, getJWTSecret(), (err, decoded) => {
     if (err) {
       return res.status(403).json({ message: 'Token không hợp lệ' });
     }

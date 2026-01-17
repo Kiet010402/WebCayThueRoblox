@@ -5,6 +5,8 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const Game = require('../models/Game');
 const jwt = require('jsonwebtoken');
+const { getJWTSecret } = require('../utils/auth');
+const { validateObjectId } = require('../utils/validation');
 
 // Middleware to verify token
 const authenticate = async (req, res, next) => {
@@ -16,7 +18,7 @@ const authenticate = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, getJWTSecret());
     const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(403).json({ message: 'User không tồn tại' });
@@ -137,6 +139,10 @@ router.get('/by-game/:gameName', async (req, res) => {
 // Purchase account
 router.post('/:id/purchase', authenticate, async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid account ID' });
+    }
     const account = await Account.findById(req.params.id);
     if (!account) {
       return res.status(404).json({ message: 'Account không tồn tại' });
