@@ -297,18 +297,25 @@ async function sendEmailViaGmailAPI(mailOptions) {
   
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
   
-  // Create email message in RFC 2822 format
+  // Encode subject with UTF-8 for proper Vietnamese character support
+  const encodeSubject = (subject) => {
+    return `=?UTF-8?B?${Buffer.from(subject, 'utf-8').toString('base64')}?=`;
+  };
+  
+  // Create email message in RFC 2822 format with proper encoding
   const message = [
     `From: ${mailOptions.from}`,
     `To: ${mailOptions.to}`,
-    `Subject: ${mailOptions.subject}`,
+    `Subject: ${encodeSubject(mailOptions.subject)}`,
+    `MIME-Version: 1.0`,
     `Content-Type: text/html; charset=utf-8`,
+    `Content-Transfer-Encoding: base64`,
     '',
-    mailOptions.html
+    Buffer.from(mailOptions.html, 'utf-8').toString('base64')
   ].join('\n');
   
   // Encode message in base64url format
-  const encodedMessage = Buffer.from(message)
+  const encodedMessage = Buffer.from(message, 'utf-8')
     .toString('base64')
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
@@ -519,7 +526,7 @@ router.post('/forgot-password', async (req, res) => {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
-        subject: 'Mã xác nhận đặt lại mật khẩu - WebCayThueRoblox',
+        subject: 'Mã xác nhận đặt lại mật khẩu - WebCayThueRoblox', // UTF-8 Vietnamese text
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #2196F3;">Đặt lại mật khẩu</h2>
