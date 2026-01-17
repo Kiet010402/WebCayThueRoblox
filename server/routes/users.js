@@ -237,34 +237,124 @@ router.put('/change-password', async (req, res) => {
 // Configure nodemailer transporter
 let transporter = null;
 
+// OAuth2 helper function to get access token
+async function getOAuth2AccessToken() {
+  const { google } = require('googleapis');
+  
+  if (!process.env.GMAIL_CLIENT_ID || !process.env.GMAIL_CLIENT_SECRET || !process.env.GMAIL_REFRESH_TOKEN) {
+    throw new Error('OAuth2 credentials are missing');
+  }
+  
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID.trim(),
+    process.env.GMAIL_CLIENT_SECRET.trim(),
+    'http://localhost:3000'
+  );
+  
+  oauth2Client.setCredentials({
+    refresh_token: process.env.GMAIL_REFRESH_TOKEN.trim()
+  });
+  
+  try {
+    const { token, res } = await oauth2Client.getAccessToken();
+    
+    if (!token) {
+      console.error('Access token is null. Response:', res?.data);
+      throw new Error('Failed to get access token - token is null');
+    }
+    
+    console.log('OAuth2 access token obtained successfully, length:', token.length);
+    return token;
+  } catch (error) {
+    console.error('Error getting OAuth2 access token:', error.message);
+    console.error('Error details:', {
+      code: error.code,
+      response: error.response?.data
+    });
+    
+    // Check if it's an invalid grant error (refresh token expired/revoked)
+    if (error.message.includes('invalid_grant') || error.response?.data?.error === 'invalid_grant') {
+      console.error('⚠️ Refresh token may be invalid or expired. Please run get-oauth2-token.js again to get a new refresh token.');
+    }
+    
+    throw error;
+  }
+}
+
+// Get or create transporter (ensures it's ready before use)
+async function getTransporter() {
+  const emailService = process.env.EMAIL_SERVICE || 'gmail';
+  const useOAuth2 = process.env.GMAIL_CLIENT_ID && 
+                    process.env.GMAIL_CLIENT_SECRET && 
+                    process.env.GMAIL_REFRESH_TOKEN;
+  
+  if (emailService.toLowerCase() === 'gmail' && useOAuth2) {
+    // For OAuth2, always get fresh access token and create new transporter
+    // This ensures token is always valid
+    try {
+      const accessToken = await getOAuth2AccessToken();
+      return nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user: process.env.EMAIL_USER,
+          clientId: process.env.GMAIL_CLIENT_ID,
+          clientSecret: process.env.GMAIL_CLIENT_SECRET,
+          refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+          accessToken: accessToken
+        }
+      });
+    } catch (err) {
+      console.error('Failed to create OAuth2 transporter:', err);
+      throw err;
+    }
+  }
+  
+  // For non-OAuth2, return existing transporter
+  if (transporter) {
+    return transporter;
+  }
+  
+  throw new Error('Email transporter is not configured');
+}
+
 // Only create transporter if email config exists
-if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
-  // Use explicit SMTP configuration for better compatibility with cloud platforms
+if (process.env.EMAIL_USER) {
   const emailService = process.env.EMAIL_SERVICE || 'gmail';
   
-  if (emailService.toLowerCase() === 'gmail') {
+  // Check if using OAuth2 (preferred) or App Password
+  const useOAuth2 = process.env.GMAIL_CLIENT_ID && 
+                    process.env.GMAIL_CLIENT_SECRET && 
+                    process.env.GMAIL_REFRESH_TOKEN;
+
+  if (emailService.toLowerCase() === 'gmail' && useOAuth2) {
+    // Use OAuth2 (recommended for production)
+    // Don't verify on startup, will create transporter on demand with fresh token
+    console.log('OAuth2 email configuration detected - transporter will be created on demand');
+    // Transporter will be created in getTransporter() function when needed
+  } else if (emailService.toLowerCase() === 'gmail' && process.env.EMAIL_PASSWORD) {
+    // Fallback to App Password (for backward compatibility)
     transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
-      secure: false, // true for 465, false for other ports
+      secure: false,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD
       },
       tls: {
-        // Do not fail on invalid certs
         rejectUnauthorized: false
       },
-      connectionTimeout: 60000, // 60 seconds
-      greetingTimeout: 30000, // 30 seconds
-      socketTimeout: 60000, // 60 seconds
-      // Enable connection pooling
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
       pool: true,
       maxConnections: 1,
       maxMessages: 3
     });
+    console.log('Email transporter configured with App Password (fallback)');
   } else {
-    // Fallback to service-based config for other email services
+    // Other email services
     transporter = nodemailer.createTransport({
       service: emailService,
       auth: {
@@ -275,17 +365,20 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
       greetingTimeout: 30000,
       socketTimeout: 60000
     });
+    console.log(`Email transporter configured for ${emailService}`);
   }
   
-  // Verify connection on startup (optional, can be removed if causes issues)
-  transporter.verify(function (error, success) {
-    if (error) {
-      console.log('Email transporter verification failed:', error.message);
-      console.log('Email will still attempt to send, but may fail');
-    } else {
-      console.log('Email transporter is ready to send messages');
-    }
-  });
+  // Verify connection on startup (optional)
+  if (transporter) {
+    transporter.verify(function (error, success) {
+      if (error) {
+        console.log('Email transporter verification failed:', error.message);
+        console.log('Email will still attempt to send, but may fail');
+      } else {
+        console.log('Email transporter is ready to send messages');
+      }
+    });
+  }
 }
 
 // Forgot password - Send reset code via email
@@ -311,12 +404,31 @@ router.post('/forgot-password', async (req, res) => {
     user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    // Check if email service is properly configured (not placeholder values)
-    const isEmailConfigured = transporter && 
-                              process.env.EMAIL_USER && 
-                              process.env.EMAIL_PASSWORD &&
-                              process.env.EMAIL_USER !== 'your_email@gmail.com' &&
-                              process.env.EMAIL_PASSWORD !== 'your_app_password';
+    // Check if email service is properly configured
+    const useOAuth2 = !!(process.env.GMAIL_CLIENT_ID && 
+                         process.env.GMAIL_CLIENT_SECRET && 
+                         process.env.GMAIL_REFRESH_TOKEN);
+    const useAppPassword = !!(process.env.EMAIL_PASSWORD && 
+                              process.env.EMAIL_PASSWORD !== 'your_app_password' &&
+                              process.env.EMAIL_PASSWORD.trim() !== '');
+    
+    // For OAuth2, transporter is created on-demand, so don't require it to exist
+    // For App Password, need transporter to exist
+    const isEmailConfigured = !!(process.env.EMAIL_USER && 
+                                 process.env.EMAIL_USER !== 'your_email@gmail.com' &&
+                                 (useOAuth2 || (useAppPassword && transporter)));
+
+    console.log('Email config check:', {
+      hasEmailUser: !!process.env.EMAIL_USER,
+      emailUser: process.env.EMAIL_USER,
+      useOAuth2,
+      hasClientId: !!process.env.GMAIL_CLIENT_ID,
+      hasClientSecret: !!process.env.GMAIL_CLIENT_SECRET,
+      hasRefreshToken: !!process.env.GMAIL_REFRESH_TOKEN,
+      useAppPassword,
+      hasTransporter: !!transporter,
+      isEmailConfigured
+    });
 
     if (!isEmailConfigured) {
       // For development: log the code to console
@@ -356,12 +468,29 @@ router.post('/forgot-password', async (req, res) => {
         `
       };
 
+      // Ensure transporter is ready
+      const emailTransporter = await getTransporter();
+      if (!emailTransporter) {
+        throw new Error('Email transporter is not configured');
+      }
+      
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-          await transporter.sendMail(mailOptions);
+          // For OAuth2, get fresh transporter with new token for each attempt
+          const useOAuth2 = process.env.GMAIL_CLIENT_ID && 
+                           process.env.GMAIL_CLIENT_SECRET && 
+                           process.env.GMAIL_REFRESH_TOKEN;
+          const currentTransporter = useOAuth2 ? await getTransporter() : emailTransporter;
+          
+          await currentTransporter.sendMail(mailOptions);
           return true; // Success
         } catch (error) {
           console.error(`Email sending attempt ${attempt + 1} failed:`, error.message);
+          console.error('Error details:', {
+            code: error.code,
+            command: error.command,
+            response: error.response
+          });
           
           // If it's the last attempt, throw the error
           if (attempt === retries) {
