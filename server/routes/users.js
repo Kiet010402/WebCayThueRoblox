@@ -293,8 +293,13 @@ async function getTransporter() {
     // This ensures token is always valid
     try {
       const accessToken = await getOAuth2AccessToken();
+      
+      // Use explicit SMTP configuration for better compatibility with cloud platforms
+      // Try port 465 (SSL) first, as it's more reliable on some cloud platforms
       return nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true, // true for 465, false for other ports
         auth: {
           type: 'OAuth2',
           user: process.env.EMAIL_USER,
@@ -302,7 +307,17 @@ async function getTransporter() {
           clientSecret: process.env.GMAIL_CLIENT_SECRET,
           refreshToken: process.env.GMAIL_REFRESH_TOKEN,
           accessToken: accessToken
-        }
+        },
+        tls: {
+          rejectUnauthorized: false
+        },
+        connectionTimeout: 60000, // 60 seconds
+        greetingTimeout: 30000, // 30 seconds
+        socketTimeout: 60000, // 60 seconds
+        // Retry configuration
+        pool: false, // Disable pooling for OAuth2
+        maxConnections: 1,
+        maxMessages: 1
       });
     } catch (err) {
       console.error('Failed to create OAuth2 transporter:', err);
@@ -331,6 +346,7 @@ if (process.env.EMAIL_USER) {
     // Use OAuth2 (recommended for production)
     // Don't verify on startup, will create transporter on demand with fresh token
     console.log('OAuth2 email configuration detected - transporter will be created on demand');
+    console.log('Using OAuth2 for Gmail - will connect via SMTP with OAuth2 authentication');
     // Transporter will be created in getTransporter() function when needed
   } else if (emailService.toLowerCase() === 'gmail' && process.env.EMAIL_PASSWORD) {
     // Fallback to App Password (for backward compatibility)
@@ -482,15 +498,24 @@ router.post('/forgot-password', async (req, res) => {
                            process.env.GMAIL_REFRESH_TOKEN;
           const currentTransporter = useOAuth2 ? await getTransporter() : emailTransporter;
           
+          console.log(`Sending email attempt ${attempt + 1}...`);
           await currentTransporter.sendMail(mailOptions);
+          console.log('Email sent successfully!');
           return true; // Success
         } catch (error) {
           console.error(`Email sending attempt ${attempt + 1} failed:`, error.message);
           console.error('Error details:', {
             code: error.code,
             command: error.command,
-            response: error.response
+            response: error.response,
+            responseCode: error.responseCode
           });
+          
+          // If it's a connection timeout and we have retries left, try different port
+          if (error.code === 'ETIMEDOUT' && attempt < retries) {
+            console.log('Connection timeout detected. This may be a network/firewall issue on Render.com.');
+            console.log('Trying alternative connection method...');
+          }
           
           // If it's the last attempt, throw the error
           if (attempt === retries) {
