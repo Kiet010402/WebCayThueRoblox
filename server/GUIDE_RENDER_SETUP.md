@@ -109,6 +109,26 @@ MongoDB connected
 
 ---
 
+### Lỗi: "Connection timeout" (ETIMEDOUT)
+
+**Nguyên nhân:** Render.com có thể block SMTP connections đến Gmail
+
+**Giải pháp:**
+
+#### Option 1: Đã cập nhật code để dùng port 465 (SSL)
+- Code đã được cập nhật để thử port 465 thay vì 587
+- Deploy lại và test
+
+#### Option 2: Render.com có thể block SMTP
+- Một số cloud platforms block outbound SMTP connections
+- Nếu vẫn timeout, có thể cần dùng email service khác (SendGrid, Resend, Mailgun)
+
+#### Option 3: Kiểm tra Network Settings
+- Kiểm tra xem Render.com có allow outbound SMTP connections không
+- Có thể cần contact Render.com support
+
+---
+
 ### Email Không Đến
 
 **Kiểm tra:**
