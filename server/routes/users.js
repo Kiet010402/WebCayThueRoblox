@@ -239,11 +239,51 @@ let transporter = null;
 
 // Only create transporter if email config exists
 if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
-  transporter = nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE || 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD
+  // Use explicit SMTP configuration for better compatibility with cloud platforms
+  const emailService = process.env.EMAIL_SERVICE || 'gmail';
+  
+  if (emailService.toLowerCase() === 'gmail') {
+    transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD
+      },
+      tls: {
+        // Do not fail on invalid certs
+        rejectUnauthorized: false
+      },
+      connectionTimeout: 60000, // 60 seconds
+      greetingTimeout: 30000, // 30 seconds
+      socketTimeout: 60000, // 60 seconds
+      // Enable connection pooling
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 3
+    });
+  } else {
+    // Fallback to service-based config for other email services
+    transporter = nodemailer.createTransport({
+      service: emailService,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD
+      },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000
+    });
+  }
+  
+  // Verify connection on startup (optional, can be removed if causes issues)
+  transporter.verify(function (error, success) {
+    if (error) {
+      console.log('Email transporter verification failed:', error.message);
+      console.log('Email will still attempt to send, but may fail');
+    } else {
+      console.log('Email transporter is ready to send messages');
     }
   });
 }
@@ -294,8 +334,8 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
-    // Send email
-    try {
+    // Send email with retry logic
+    const sendEmailWithRetry = async (retries = 2) => {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
@@ -316,10 +356,38 @@ router.post('/forgot-password', async (req, res) => {
         `
       };
 
-      await transporter.sendMail(mailOptions);
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          await transporter.sendMail(mailOptions);
+          return true; // Success
+        } catch (error) {
+          console.error(`Email sending attempt ${attempt + 1} failed:`, error.message);
+          
+          // If it's the last attempt, throw the error
+          if (attempt === retries) {
+            throw error;
+          }
+          
+          // Wait before retry (exponential backoff)
+          const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s...
+          console.log(`Retrying in ${waitTime}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    };
+
+    try {
+      await sendEmailWithRetry(2); // Retry up to 2 times (3 total attempts)
       res.json({ message: 'Mã xác nhận đã được gửi đến email của bạn' });
     } catch (emailError) {
-      console.error('Email sending error:', emailError);
+      console.error('Email sending error (all retries failed):', emailError);
+      console.error('Error details:', {
+        code: emailError.code,
+        command: emailError.command,
+        response: emailError.response,
+        responseCode: emailError.responseCode
+      });
+      
       // Clear the code if email fails
       user.resetPasswordCode = undefined;
       user.resetPasswordExpires = undefined;
@@ -340,7 +408,13 @@ router.post('/forgot-password', async (req, res) => {
         });
       }
       
-      return res.status(500).json({ message: 'Không thể gửi email. Vui lòng thử lại sau.' });
+      // Provide more helpful error message
+      let errorMessage = 'Không thể gửi email. Vui lòng thử lại sau.';
+      if (emailError.code === 'ETIMEDOUT' || emailError.code === 'ECONNREFUSED') {
+        errorMessage = 'Không thể kết nối đến máy chủ email. Vui lòng kiểm tra cấu hình email hoặc thử lại sau.';
+      }
+      
+      return res.status(500).json({ message: errorMessage });
     }
   } catch (error) {
     console.error('Forgot password error:', error);
