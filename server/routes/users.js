@@ -526,7 +526,7 @@ router.post('/forgot-password', async (req, res) => {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
-        subject: 'Mã xác nhận đặt lại mật khẩu - WebCayThueRoblox', // UTF-8 Vietnamese text
+        subject: 'Mã xác nhận đặt lại mật khẩu - taphoakaihon', // UTF-8 Vietnamese text
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #2196F3;">Đặt lại mật khẩu</h2>
