@@ -73,9 +73,15 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const originalAmount = req.body.totalAmount || 0;
+    // Get original amount (before any discounts)
+    const originalAmount = req.body.originalAmount || req.body.totalAmount || 0;
     const orderType = req.body.orderType || 'product';
     const voucherCode = (req.body.voucherCode || '').trim().toUpperCase();
+
+    // Game discount (from pricing)
+    const gameDiscountPercent = req.body.gameDiscountPercent || 0;
+    let gameDiscountAmount = 0;
+    let priceAfterGameDiscount = originalAmount;
 
     // User account discount
     const accountDiscountPercent = user.discount || 0;
@@ -89,10 +95,17 @@ router.post('/', authenticateToken, async (req, res) => {
     let finalAmount = originalAmount;
 
     if (orderType === 'service') {
-      // Apply account discount first
+      // Apply game discount first (if provided)
+      if (gameDiscountPercent > 0 && gameDiscountPercent <= 100) {
+        gameDiscountAmount = Math.round((originalAmount * gameDiscountPercent) / 100);
+        priceAfterGameDiscount = originalAmount - gameDiscountAmount;
+        finalAmount = priceAfterGameDiscount;
+      }
+
+      // Apply account discount on price after game discount
       if (accountDiscountPercent > 0 && accountDiscountPercent <= 100) {
         accountDiscountAmount = Math.round(
-          (originalAmount * accountDiscountPercent) / 100
+          (priceAfterGameDiscount * accountDiscountPercent) / 100
         );
         finalAmount -= accountDiscountAmount;
       }
@@ -125,6 +138,7 @@ router.post('/', authenticateToken, async (req, res) => {
           return res.status(400).json({ message: 'Bạn đã sử dụng voucher này rồi' });
         }
 
+        // Check min order amount against original amount (before discounts)
         if (voucher.minOrderAmount && originalAmount < voucher.minOrderAmount) {
           return res.status(400).json({
             message: `Voucher chỉ áp dụng cho đơn từ ${voucher.minOrderAmount.toLocaleString(
@@ -156,8 +170,13 @@ router.post('/', authenticateToken, async (req, res) => {
 
       // Create balance history
       let discountDetails = '';
+      if (gameDiscountAmount > 0) {
+        discountDetails += `Khuyến mãi ${gameDiscountPercent}%: -${gameDiscountAmount.toLocaleString(
+          'vi-VN'
+        )}đ`;
+      }
       if (accountDiscountAmount > 0) {
-        discountDetails += `Giảm tài khoản ${accountDiscountPercent}%: -${accountDiscountAmount.toLocaleString(
+        discountDetails += `${discountDetails ? '; ' : ''}Giảm tài khoản ${accountDiscountPercent}%: -${accountDiscountAmount.toLocaleString(
           'vi-VN'
         )}đ`;
       }
@@ -192,10 +211,13 @@ router.post('/', authenticateToken, async (req, res) => {
       ...req.body,
       userId: req.userId,
       orderType,
-      totalAmount: finalAmount, // Override with final amount after discount
-      originalAmount,
+      totalAmount: finalAmount, // Override with final amount after all discounts
+      originalAmount, // Original price before any discounts
+      gameDiscountPercent: gameDiscountPercent > 0 ? gameDiscountPercent : 0,
+      gameDiscountAmount,
       discount: accountDiscountAmount > 0 ? accountDiscountPercent : 0,
-      discountAmount: accountDiscountAmount + voucherDiscountAmount,
+      discountAmount: accountDiscountAmount, // Account discount amount only
+      totalDiscountAmount: gameDiscountAmount + accountDiscountAmount + voucherDiscountAmount, // Total discount amount from all sources
       voucherCode: voucher ? voucher.code : voucherCode || null,
       voucherDiscount: voucherDiscountPercent,
       voucherDiscountAmount,
@@ -212,6 +234,36 @@ router.post('/', authenticateToken, async (req, res) => {
         voucher.usedByUsers = [...usedByUsers, user._id];
         await voucher.save();
       }
+    }
+
+    // Log activity for service orders (cày thuê)
+    if (orderType === 'service') {
+      const ActivityLog = require('../models/ActivityLog');
+      let activityMessage = `Cày thuê ${newOrder.serviceName || 'dịch vụ'}`;
+      if (newOrder.gameName) {
+        activityMessage += ` - ${newOrder.gameName}`;
+      }
+      if (newOrder.totalDiscountAmount > 0) {
+        const discountInfo = [];
+        if (newOrder.gameDiscountPercent > 0) {
+          discountInfo.push(`KM ${newOrder.gameDiscountPercent}%`);
+        }
+        if (newOrder.discount > 0) {
+          discountInfo.push(`TK ${newOrder.discount}%`);
+        }
+        if (newOrder.voucherCode && newOrder.voucherDiscount > 0) {
+          discountInfo.push(`VC ${newOrder.voucherDiscount}%`);
+        }
+        if (discountInfo.length > 0) {
+          activityMessage += ` (Giảm: ${discountInfo.join(', ')})`;
+        }
+      }
+      activityMessage += ` - Giá: ${newOrder.totalAmount.toLocaleString('vi-VN')}đ`;
+      
+      await ActivityLog.create({
+        userId: user._id,
+        action: activityMessage
+      });
     }
 
     res.status(201).json(newOrder);

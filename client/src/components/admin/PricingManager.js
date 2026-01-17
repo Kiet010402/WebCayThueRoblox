@@ -88,6 +88,21 @@ export default function PricingManager() {
     });
   };
 
+  const updateGameDiscount = (gameId, discountPercent) => {
+    setGames((prev) => {
+      const next = deepClone(prev);
+      const g = next.find((x) => x.id === gameId);
+      if (!g) return prev;
+      const discount = Number(discountPercent) || 0;
+      if (discount < 0 || discount > 100) {
+        alert('Khuyến mãi phải từ 0% đến 100%');
+        return prev;
+      }
+      g.discountPercent = discount > 0 ? discount : null;
+      return next;
+    });
+  };
+
   const addGame = () => {
     const name = (newGame.name || '').trim();
     if (!name) return alert('Vui lòng nhập tên game');
@@ -276,12 +291,53 @@ export default function PricingManager() {
                       <span className="pricing-expand">{isExpanded ? '−' : '+'}</span>
                     </div>
                   </div>
-                  <button
-                    className="pricing-small danger"
-                    onClick={() => deleteGame(game.id, game.name)}
-                  >
-                    Xóa bảng giá
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <div className="pricing-discount-input-wrapper" onClick={(e) => e.stopPropagation()}>
+                      <label style={{ fontSize: '0.75rem', color: '#fff', opacity: 0.9, marginRight: '0.3rem' }}>
+                        Khuyến mãi:
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        className="pricing-discount-input"
+                        value={game.discountPercent || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updateGameDiscount(game.id, 0);
+                          } else {
+                            const num = Number(val);
+                            if (num >= 0 && num <= 100) {
+                              updateGameDiscount(game.id, num);
+                            }
+                          }
+                        }}
+                        placeholder="0"
+                        style={{
+                          width: '60px',
+                          padding: '0.3rem 0.5rem',
+                          border: '1px solid rgba(255,255,255,0.3)',
+                          borderRadius: '6px',
+                          background: 'rgba(255,255,255,0.2)',
+                          color: '#fff',
+                          fontSize: '0.85rem',
+                          fontWeight: 'bold',
+                          textAlign: 'center'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.75rem', color: '#fff', marginLeft: '0.3rem' }}>%</span>
+                    </div>
+                    <button
+                      className="pricing-small danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteGame(game.id, game.name);
+                      }}
+                    >
+                      Xóa bảng giá
+                    </button>
+                  </div>
                 </div>
 
                 {isExpanded && (

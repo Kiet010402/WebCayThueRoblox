@@ -199,12 +199,23 @@ function CayThue() {
     }
 
     try {
+      // Tính giá sau khi áp dụng giảm giá game
+      const originalPrice = Number(selectedService.price) || 0;
+      const gameDiscount = selectedGame?.discountPercent || 0;
+      let priceAfterGameDiscount = originalPrice;
+      if (gameDiscount > 0 && gameDiscount <= 100) {
+        priceAfterGameDiscount = Math.round(originalPrice * (1 - gameDiscount / 100));
+      }
+
       const orderData = {
         orderType: 'service',
         serviceName: selectedService.name,
         gameName: selectedGame.name,
+        gameId: selectedGame.id, // Thêm gameId để backend có thể lấy discount
         serviceCategory: selectedCategory || null,
-        totalAmount: selectedService.price,
+        totalAmount: priceAfterGameDiscount, // Gửi giá sau giảm game, backend sẽ tính thêm account discount và voucher
+        originalAmount: originalPrice, // Gửi giá gốc để backend tính toán
+        gameDiscountPercent: gameDiscount > 0 ? gameDiscount : undefined, // Gửi % giảm giá game
         voucherCode: voucherCode.trim() || undefined,
         status: 'Đang xử lí',
         robloxUsername: formData.username,
@@ -236,13 +247,17 @@ function CayThue() {
       const order = response.data;
       let successMsg = `Đặt dịch vụ ${selectedService.name} cho game ${selectedGame.name} thành công!\n`;
       successMsg += `Giá gốc: ${order.originalAmount.toLocaleString('vi-VN')}đ\n`;
-      if (order.discountAmount > 0) {
-        successMsg += `Tổng giảm: -${order.discountAmount.toLocaleString('vi-VN')}đ\n`;
-        if (order.discount) {
-          successMsg += `- Giảm tài khoản ${order.discount}%\n`;
+      const totalDiscount = order.totalDiscountAmount || order.discountAmount || 0;
+      if (totalDiscount > 0) {
+        successMsg += `Tổng giảm: -${totalDiscount.toLocaleString('vi-VN')}đ\n`;
+        if (order.gameDiscountPercent && order.gameDiscountAmount > 0) {
+          successMsg += `- Khuyến mãi ${order.gameDiscountPercent}%: -${order.gameDiscountAmount.toLocaleString('vi-VN')}đ\n`;
         }
-        if (order.voucherCode && order.voucherDiscount) {
-          successMsg += `- Voucher ${order.voucherCode}: ${order.voucherDiscount}%\n`;
+        if (order.discount && order.discountAmount > 0) {
+          successMsg += `- Giảm tài khoản ${order.discount}%: -${order.discountAmount.toLocaleString('vi-VN')}đ\n`;
+        }
+        if (order.voucherCode && order.voucherDiscount && order.voucherDiscountAmount > 0) {
+          successMsg += `- Voucher ${order.voucherCode} ${order.voucherDiscount}%: -${order.voucherDiscountAmount.toLocaleString('vi-VN')}đ\n`;
         }
       }
       successMsg += `Giá sau giảm: ${order.totalAmount.toLocaleString('vi-VN')}đ`;
@@ -285,6 +300,9 @@ function CayThue() {
             games.map((game) => (
             <div key={game.id} className="game-card" onClick={() => handleGameClick(game)}>
               {game.badge && <div className="game-badge">{game.badge}</div>}
+              {game.discountPercent && game.discountPercent > 0 && (
+                <div className="game-discount-badge">Khuyến mãi {game.discountPercent}%</div>
+              )}
               <div className="game-image" style={{ backgroundImage: `url(${game.image})` }}></div>
               <h3>{game.name}</h3>
               <p>{game.description}</p>
@@ -306,11 +324,29 @@ function CayThue() {
                 {selectedCategory && selectedGame.serviceCategories[selectedCategory] ? (
                   <div className="services-display">
                     <div className="service-category-content">
-                      {selectedGame.serviceCategories[selectedCategory].services.map((service, idx) => (
-                        <div key={idx} className="service-line">
-                          {idx + 1}. {service.name}: {(service.price / 1000).toFixed(0)}K
-                        </div>
-                      ))}
+                      {selectedGame.serviceCategories[selectedCategory].services.map((service, idx) => {
+                        const originalPrice = Number(service.price) || 0;
+                        const gameDiscount = selectedGame.discountPercent || 0;
+                        const discountedPrice = gameDiscount > 0 
+                          ? Math.round(originalPrice * (1 - gameDiscount / 100))
+                          : originalPrice;
+                        return (
+                          <div key={idx} className="service-line">
+                            {idx + 1}. {service.name}: {gameDiscount > 0 ? (
+                              <span>
+                                <span style={{ textDecoration: 'line-through', color: '#999', marginRight: '0.5rem' }}>
+                                  {(originalPrice / 1000).toFixed(0)}K
+                                </span>
+                                <span style={{ color: '#f44336', fontWeight: 'bold' }}>
+                                  {(discountedPrice / 1000).toFixed(0)}K
+                                </span>
+                              </span>
+                            ) : (
+                              <span>{(originalPrice / 1000).toFixed(0)}K</span>
+                            )}
+                          </div>
+                        );
+                      })}
                       {selectedGame.serviceCategories[selectedCategory].note && (
                         <div className="service-note">
                           Note: {selectedGame.serviceCategories[selectedCategory].note}
@@ -335,7 +371,28 @@ function CayThue() {
                     onClick={() => handleServiceClick(service)}
                   >
                     <span className="service-name">{service.name}</span>
-                    <span className="service-price">{service.price.toLocaleString('vi-VN')}đ</span>
+                    <span className="service-price">
+                      {(() => {
+                        const originalPrice = Number(service.price) || 0;
+                        const gameDiscount = selectedGame.discountPercent || 0;
+                        const discountedPrice = gameDiscount > 0 
+                          ? Math.round(originalPrice * (1 - gameDiscount / 100))
+                          : originalPrice;
+                        if (gameDiscount > 0) {
+                          return (
+                            <span>
+                              <span style={{ textDecoration: 'line-through', color: '#999', marginRight: '0.5rem', fontSize: '0.9rem' }}>
+                                {originalPrice.toLocaleString('vi-VN')}đ
+                              </span>
+                              <span style={{ color: '#f44336', fontWeight: 'bold' }}>
+                                {discountedPrice.toLocaleString('vi-VN')}đ
+                              </span>
+                            </span>
+                          );
+                        }
+                        return <span>{originalPrice.toLocaleString('vi-VN')}đ</span>;
+                      })()}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -482,13 +539,27 @@ function CayThue() {
                   <input
                     type="text"
                     value={selectedService ? (() => {
-                      const originalPrice = selectedService.price;
+                      const originalPrice = Number(selectedService.price) || 0;
+                      const gameDiscount = selectedGame?.discountPercent || 0;
+                      
+                      // Áp dụng giảm giá game trước
+                      let priceAfterGameDiscount = originalPrice;
+                      if (gameDiscount > 0 && gameDiscount <= 100) {
+                        priceAfterGameDiscount = Math.round(originalPrice * (1 - gameDiscount / 100));
+                      }
+                      
                       const accountDiscount = user?.discount || 0;
-                      let priceAfterAccount = originalPrice;
+                      let priceAfterAccount = priceAfterGameDiscount;
                       let parts = [];
 
+                      // Thêm thông tin giảm giá game nếu có
+                      if (gameDiscount > 0 && gameDiscount <= 100) {
+                        const gameDiscountAmount = originalPrice - priceAfterGameDiscount;
+                        parts.push(`Khuyến mãi ${gameDiscount}%: -${gameDiscountAmount.toLocaleString('vi-VN')}đ`);
+                      }
+
                       if (accountDiscount > 0 && accountDiscount <= 100) {
-                        const accAmount = Math.round((originalPrice * accountDiscount) / 100);
+                        const accAmount = Math.round((priceAfterGameDiscount * accountDiscount) / 100);
                         priceAfterAccount -= accAmount;
                         parts.push(`Giảm tài khoản ${accountDiscount}%: -${accAmount.toLocaleString('vi-VN')}đ`);
                       }

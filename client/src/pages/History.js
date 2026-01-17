@@ -327,21 +327,50 @@ function History() {
                         padding: '0.75rem', 
                         border: '1px solid #ddd'
                       }}>
-                  {item.discountAmount > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <span style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.85rem' }}>
-                        {item.originalAmount?.toLocaleString('vi-VN') || item.totalAmount.toLocaleString('vi-VN')} đ
-                      </span>
-                      <span style={{ color: '#000', fontWeight: 'bold' }}>
-                        {item.totalAmount.toLocaleString('vi-VN')} đ
-                      </span>
-                      <span style={{ color: '#4CAF50', fontSize: '0.8rem' }}>
-                        (Giảm {item.discount}%)
-                      </span>
-                    </div>
-                  ) : (
-                    <span>{item.totalAmount.toLocaleString('vi-VN')} đ</span>
-                  )}
+                  {(() => {
+                    const originalAmount = item.originalAmount || item.totalAmount || 0;
+                    const totalAmount = item.totalAmount || 0;
+                    
+                    // Tính tổng discount từ nhiều nguồn
+                    const gameDiscountAmount = item.gameDiscountAmount || 0;
+                    const accountDiscountAmount = item.discountAmount || 0;
+                    const voucherDiscountAmount = item.voucherDiscountAmount || 0;
+                    const totalDiscountAmount = item.totalDiscountAmount || 
+                                               (gameDiscountAmount + accountDiscountAmount + voucherDiscountAmount) ||
+                                               0;
+                    
+                    // Tính % giảm giá tổng - ưu tiên tính từ originalAmount và totalAmount
+                    let discountPercent = 0;
+                    if (originalAmount > 0 && originalAmount > totalAmount) {
+                      // Tính từ sự chênh lệch giữa giá gốc và giá sau giảm
+                      discountPercent = Math.round(((originalAmount - totalAmount) / originalAmount) * 100);
+                    } else if (originalAmount > 0 && totalDiscountAmount > 0) {
+                      // Fallback: tính từ totalDiscountAmount
+                      discountPercent = Math.round((totalDiscountAmount / originalAmount) * 100);
+                    }
+                    
+                    // Hiển thị discount nếu có giảm giá
+                    const hasDiscount = originalAmount > totalAmount && totalAmount > 0 && discountPercent > 0;
+                    
+                    if (hasDiscount) {
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{ textDecoration: 'line-through', color: '#999', fontSize: '0.9rem' }}>
+                              {originalAmount.toLocaleString('vi-VN')} đ
+                            </span>
+                            <span style={{ color: '#000', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                              {totalAmount.toLocaleString('vi-VN')} đ
+                            </span>
+                          </div>
+                          <span style={{ color: '#4CAF50', fontSize: '0.8rem' }}>
+                            (giảm {discountPercent}%)
+                          </span>
+                        </div>
+                      );
+                    }
+                    return <span>{totalAmount.toLocaleString('vi-VN')} đ</span>;
+                  })()}
                       </td>
                       <td style={{ 
                         padding: '0.75rem', 

@@ -28,6 +28,15 @@ const orderSchema = new mongoose.Schema({
   originalAmount: Number,
   discount: Number,
   discountAmount: Number,
+  // Game discount fields
+  gameDiscountPercent: Number,
+  gameDiscountAmount: Number,
+  // Voucher discount fields
+  voucherCode: String,
+  voucherDiscount: Number,
+  voucherDiscountAmount: Number,
+  // Total discount amount (sum of all discounts)
+  totalDiscountAmount: Number,
   status: {
     type: String,
     enum: ['pending', 'Đang xử lí', 'Đang cày', 'Hoàn thành', 'cancelled'],
