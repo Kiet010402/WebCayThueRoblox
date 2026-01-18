@@ -763,7 +763,6 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
     settings.updatedAt = new Date();
     
     // Run parallel operations for better performance
-    const rechargeObj = recharge.toObject ? recharge.toObject() : recharge;
     await Promise.all([
       settings.save(),
       MonthlyRechargeStats.findOneAndUpdate(
@@ -773,7 +772,10 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
       )
     ]);
 
-    // Don't populate userId - not needed in response
+    // Populate userId before sending response so frontend can display user info
+    await recharge.populate('userId', 'username email');
+    const rechargeObj = recharge.toObject ? recharge.toObject() : recharge;
+
     res.json({
       message: 'Duyệt nạp tiền thành công',
       recharge: rechargeObj,

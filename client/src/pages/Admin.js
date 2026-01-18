@@ -852,7 +852,19 @@ function Admin() {
           
           const next = prev.map(r => {
             if (r._id === rechargeId) {
-              return { ...r, ...updatedRecharge, status: 'Hoàn thành', processedAt: updatedRecharge.processedAt || new Date() };
+              // Ensure userId is preserved if it's populated in updatedRecharge
+              // If updatedRecharge.userId is an object (populated), use it; otherwise keep original
+              const userId = (updatedRecharge.userId && typeof updatedRecharge.userId === 'object' && updatedRecharge.userId.username)
+                ? updatedRecharge.userId
+                : (r.userId || updatedRecharge.userId);
+              
+              return { 
+                ...r, 
+                ...updatedRecharge, 
+                userId, // Explicitly set userId to ensure it's populated
+                status: 'Hoàn thành', 
+                processedAt: updatedRecharge.processedAt || new Date() 
+              };
             }
             return r;
           });
