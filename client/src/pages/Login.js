@@ -3,6 +3,30 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import './Auth.css';
 
+// Helper function to mask email (only show last 2 digits before @)
+const maskEmail = (email) => {
+  if (!email || !email.includes('@')) return email;
+  const [localPart, domain] = email.split('@');
+  if (localPart.length <= 2) return `***${localPart}@${domain}`;
+  const maskedPart = '*'.repeat(Math.max(8, localPart.length - 2)) + localPart.slice(-2);
+  return `${maskedPart}@${domain}`;
+};
+
+// Helper function to fake email domain (gmail -> outlook)
+const fakeEmailDomain = (email) => {
+  if (!email || !email.includes('@')) return email;
+  const [localPart, domain] = email.split('@');
+  // Replace common email domains with fake ones
+  const fakeDomains = {
+    'gmail.com': 'outlook.com',
+    'yahoo.com': 'outlook.com',
+    'hotmail.com': 'outlook.com',
+    'outlook.com': 'gmail.com'
+  };
+  const fakeDomain = fakeDomains[domain.toLowerCase()] || domain;
+  return `${localPart}@${fakeDomain}`;
+};
+
 function Login({ setUser }) {
   const [formData, setFormData] = useState({
     username: '',
@@ -14,7 +38,12 @@ function Login({ setUser }) {
     newPassword: '',
     confirmPassword: ''
   });
-  const [step, setStep] = useState('login'); // 'login', 'forgot', 'reset'
+  const [adminCodeData, setAdminCodeData] = useState({
+    username: '',
+    email: '',
+    code: ''
+  });
+  const [step, setStep] = useState('login'); // 'login', 'forgot', 'reset', 'admin-code'
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,12 +93,35 @@ function Login({ setUser }) {
     if (!validateForm()) return;
 
     setLoading(true);
+    setError('');
+    setSuccess('');
     try {
       const response = await api.post('/api/users/login', {
         username: formData.username,
         password: formData.password
       });
 
+      // Check if admin requires 2FA code
+      if (response.data.requiresCode) {
+        setAdminCodeData({
+          username: formData.username,
+          email: response.data.email || '',
+          code: response.data.code || '' // Auto-fill in dev mode
+        });
+        
+        if (response.data.code) {
+          // Development mode - show code
+          setSuccess(`✅ ${response.data.message}\n\n🔑 Mã xác nhận:\n${response.data.code}`);
+        } else {
+          setSuccess('✅ ' + response.data.message);
+        }
+        
+        setStep('admin-code');
+        setLoading(false);
+        return;
+      }
+
+      // Normal login for non-admin users
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       setUser(response.data.user);
@@ -80,6 +132,45 @@ function Login({ setUser }) {
       }, 1500);
     } catch (err) {
       const errorMsg = err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không chính xác!';
+      setError('❌ ' + errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyAdminCode = async (e) => {
+    e.preventDefault();
+    
+    if (!adminCodeData.code.trim()) {
+      setError('❌ Vui lòng nhập mã xác nhận');
+      return;
+    }
+
+    if (adminCodeData.code.length !== 6) {
+      setError('❌ Mã xác nhận phải có 6 số');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const response = await api.post('/api/users/verify-admin-code', {
+        username: adminCodeData.username,
+        code: adminCodeData.code
+      });
+
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      setUser(response.data.user);
+      setSuccess('✅ Xác thực thành công! Đang chuyển hướng...');
+      
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Mã xác nhận không chính xác. Vui lòng thử lại!';
       setError('❌ ' + errorMsg);
     } finally {
       setLoading(false);
@@ -216,18 +307,18 @@ function Login({ setUser }) {
             <div className="auth-footer">
               <p>Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link></p>
               <p style={{ marginTop: '0.5rem' }}>
-                <a 
-                  href="#" 
-                  onClick={(e) => {
-                    e.preventDefault();
+                <button 
+                  type="button"
+                  onClick={() => {
                     setStep('forgot');
                     setError('');
                     setSuccess('');
                   }}
                   className="forgot-password-link"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                 >
                   Quên mật khẩu?
-                </a>
+                </button>
               </p>
             </div>
           </>
@@ -260,10 +351,9 @@ function Login({ setUser }) {
 
             <div className="auth-footer">
               <p>
-                <a 
-                  href="#" 
-                  onClick={(e) => {
-                    e.preventDefault();
+                <button 
+                  type="button"
+                  onClick={() => {
                     setStep('login');
                     setError('');
                     setSuccess('');
@@ -275,9 +365,10 @@ function Login({ setUser }) {
                     });
                   }}
                   className="forgot-password-link"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                 >
                   ← Quay lại đăng nhập
-                </a>
+                </button>
               </p>
             </div>
           </>
@@ -346,10 +437,9 @@ function Login({ setUser }) {
 
             <div className="auth-footer">
               <p>
-                <a 
-                  href="#" 
-                  onClick={(e) => {
-                    e.preventDefault();
+                <button 
+                  type="button"
+                  onClick={() => {
                     setStep('forgot');
                     setForgotPasswordData(prev => ({
                       ...prev,
@@ -361,9 +451,85 @@ function Login({ setUser }) {
                     setSuccess('');
                   }}
                   className="forgot-password-link"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                 >
                   ← Quay lại
-                </a>
+                </button>
+              </p>
+            </div>
+          </>
+        )}
+
+        {step === 'admin-code' && (
+          <>
+            <h1>🔐 XÁC THỰC ĐĂNG NHẬP ADMIN</h1>
+            
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
+            
+            <form onSubmit={handleVerifyAdminCode}>
+              <div className="form-group">
+                <label>👤 Tên Đăng Nhập:</label>
+                <input 
+                  type="text" 
+                  value={adminCodeData.username}
+                  disabled
+                  className="disabled-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>📧 Email:</label>
+                <input 
+                  type="email" 
+                  value={adminCodeData.email ? fakeEmailDomain(maskEmail(adminCodeData.email)) : ''}
+                  disabled
+                  className="disabled-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>🔢 Mã Xác Nhận (6 số):</label>
+                <input 
+                  type="text" 
+                  name="code"
+                  placeholder="Nhập mã xác nhận từ email"
+                  value={adminCodeData.code}
+                  onChange={(e) => setAdminCodeData(prev => ({ ...prev, code: e.target.value }))}
+                  maxLength={6}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <button type="submit" className="submit-btn" disabled={loading}>
+                {loading ? '⏳ Đang xác thực...' : '✅ XÁC THỰC'}
+              </button>
+            </form>
+
+            <div className="auth-footer">
+              <p>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setStep('login');
+                    setAdminCodeData({
+                      username: '',
+                      email: '',
+                      code: ''
+                    });
+                    setFormData({
+                      username: '',
+                      password: ''
+                    });
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="forgot-password-link"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                >
+                  ← Quay lại đăng nhập
+                </button>
               </p>
             </div>
           </>

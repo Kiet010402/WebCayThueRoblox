@@ -6,6 +6,41 @@ import AnnouncementEditor from '../components/admin/AnnouncementEditor';
 import PricingManager from '../components/admin/PricingManager';
 import './Admin.css';
 
+// Helper function to mask email (only show last 2 digits before @)
+const maskEmail = (email) => {
+  if (!email || !email.includes('@')) return email;
+  const [localPart, domain] = email.split('@');
+  if (localPart.length <= 2) return `***${localPart}@${domain}`;
+  const maskedPart = '*'.repeat(Math.max(8, localPart.length - 2)) + localPart.slice(-2);
+  return `${maskedPart}@${domain}`;
+};
+
+// Helper function to fake email domain (gmail -> outlook)
+const fakeEmailDomain = (email) => {
+  if (!email || !email.includes('@')) return email;
+  const [localPart, domain] = email.split('@');
+  // Replace common email domains with fake ones
+  const fakeDomains = {
+    'gmail.com': 'outlook.com',
+    'yahoo.com': 'outlook.com',
+    'hotmail.com': 'outlook.com',
+    'outlook.com': 'gmail.com'
+  };
+  const fakeDomain = fakeDomains[domain.toLowerCase()] || domain;
+  return `${localPart}@${fakeDomain}`;
+};
+
+// Helper function to mask/fake email only for admin users
+const formatEmailForDisplay = (email, role) => {
+  if (!email) return '-';
+  // Only mask and fake domain for admin users
+  if (role === 'admin') {
+    return fakeEmailDomain(maskEmail(email));
+  }
+  // Normal users: show email as-is
+  return email;
+};
+
 function Admin() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
@@ -2315,7 +2350,7 @@ function Admin() {
                         {user.username}
                       </td>
                       <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
-                        {user.email}
+                        {formatEmailForDisplay(user.email, user.role)}
                       </td>
                       <td style={{ padding: '0.75rem', border: '1px solid #ddd' }}>
                         {user.balance?.toLocaleString('vi-VN') || '0'}đ
@@ -3805,7 +3840,7 @@ function Admin() {
                   <strong>Username:</strong> {userDetails.username}
                 </div>
                 <div>
-                  <strong>Email:</strong> {userDetails.email}
+                  <strong>Email:</strong> {formatEmailForDisplay(userDetails.email, userDetails.role)}
                 </div>
                 <div>
                   <strong>Số dư:</strong> {userDetails.balance?.toLocaleString('vi-VN') || '0'} đ

@@ -110,6 +110,7 @@ router.get('/users/:id/details', authenticateAdmin, async (req, res) => {
       email: user.email,
       balance: user.balance,
       discount: user.discount || 0,
+      role: user.role || 'user',
       orders, 
       recharges 
     });

@@ -133,7 +133,7 @@ function Wallet() {
                             ? 'MoMo'
                             : tx.paymentMethod === 'card'
                               ? 'Thẻ Cào'
-                              : 'Thẻ Siêu Rẻ'
+                            : 'Thẻ Siêu Rẻ'
                       }
                     </div>
                     <div className="tx-date">{formatDate(tx.createdAt)}</div>
@@ -154,7 +154,7 @@ function Wallet() {
                         )}
                         {/* Show actual amount received */}
                         <div style={{ color: '#4CAF50', fontWeight: 'bold' }}>
-                          +{tx.amount.toLocaleString('vi-VN')} đ
+                    +{tx.amount.toLocaleString('vi-VN')} đ
                         </div>
                         {/* Show fee if exists */}
                         {tx.cardFee > 0 && (

@@ -81,9 +81,9 @@ function Recharge() {
     }
 
     if (paymentMethod !== 'card') {
-      if (!billImage) {
-        alert('Vui lòng upload hình bill');
-        return;
+    if (!billImage) {
+      alert('Vui lòng upload hình bill');
+      return;
       }
     } else {
       if (!cardCode || !cardSerial) {
@@ -181,33 +181,33 @@ function Recharge() {
 
           {paymentMethod !== 'card' && (
             <>
-              <h2 style={{ marginTop: '2rem' }}>Upload Hình Bill</h2>
-              <div className="bill-upload">
-                <input
-                  type="file"
-                  id="bill-upload"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  style={{ display: 'none' }}
-                />
-                <label htmlFor="bill-upload" className="upload-label">
-                  {billImagePreview ? '📷 Thay đổi ảnh' : '📷 Chọn ảnh bill'}
-                </label>
-                {billImagePreview && (
-                  <div className="image-preview">
-                    <img src={billImagePreview} alt="Bill preview" />
-                    <button 
-                      className="remove-image-btn"
-                      onClick={() => {
-                        setBillImage(null);
-                        setBillImagePreview(null);
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
+          <h2 style={{ marginTop: '2rem' }}>Upload Hình Bill</h2>
+          <div className="bill-upload">
+            <input
+              type="file"
+              id="bill-upload"
+              accept="image/*"
+              onChange={handleImageChange}
+              style={{ display: 'none' }}
+            />
+            <label htmlFor="bill-upload" className="upload-label">
+              {billImagePreview ? '📷 Thay đổi ảnh' : '📷 Chọn ảnh bill'}
+            </label>
+            {billImagePreview && (
+              <div className="image-preview">
+                <img src={billImagePreview} alt="Bill preview" />
+                <button 
+                  className="remove-image-btn"
+                  onClick={() => {
+                    setBillImage(null);
+                    setBillImagePreview(null);
+                  }}
+                >
+                  ✕
+                </button>
               </div>
+            )}
+          </div>
             </>
           )}
         </div>

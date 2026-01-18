@@ -80,6 +80,153 @@ router.post('/login', async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: 'Mật khẩu không chính xác' });
 
+    // If user is admin, require 2FA via email code
+    if (user.role === 'admin') {
+      // Generate 6-digit code
+      const loginCode = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Save code and expiry (10 minutes)
+      user.adminLoginCode = loginCode;
+      user.adminLoginCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+      await user.save();
+
+      // Check if email service is properly configured
+      const useOAuth2 = !!(process.env.GMAIL_CLIENT_ID && 
+                           process.env.GMAIL_CLIENT_SECRET && 
+                           process.env.GMAIL_REFRESH_TOKEN);
+      const useAppPassword = !!(process.env.EMAIL_PASSWORD && 
+                                process.env.EMAIL_PASSWORD !== 'your_app_password' &&
+                                process.env.EMAIL_PASSWORD.trim() !== '');
+      
+      const isEmailConfigured = !!(process.env.EMAIL_USER && 
+                                process.env.EMAIL_USER !== 'your_email@gmail.com' &&
+                                   (useOAuth2 || (useAppPassword && transporter)));
+
+      if (!isEmailConfigured) {
+        // For development: log the code to console
+        console.log('========================================');
+        console.log('ADMIN LOGIN CODE (Development Mode):');
+        console.log(`Email: ${user.email}`);
+        console.log(`Code: ${loginCode}`);
+        console.log('========================================');
+        
+        // Return success with code in response for development
+        return res.json({ 
+          requiresCode: true,
+          email: user.email,
+          message: 'Mã xác nhận đã được tạo (Email chưa được cấu hình - xem console)',
+          code: loginCode,
+          devMode: true
+        });
+      }
+
+      // Send email with retry logic
+      const sendEmailWithRetry = async (retries = 2) => {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: user.email,
+          subject: 'Mã xác nhận đăng nhập Admin - taphoakaihon',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2196F3;">Xác thực đăng nhập Admin</h2>
+              <p>Xin chào <strong>${user.username}</strong>,</p>
+              <p>Bạn đang cố gắng đăng nhập vào tài khoản Admin. Sử dụng mã xác nhận sau để hoàn tất đăng nhập:</p>
+              <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+                <h1 style="color: #2196F3; font-size: 32px; margin: 0; letter-spacing: 8px;">${loginCode}</h1>
+              </div>
+              <p><strong>Lưu ý:</strong> Mã này sẽ hết hạn sau 10 phút.</p>
+              <p>Nếu bạn không yêu cầu đăng nhập, vui lòng bỏ qua email này và thay đổi mật khẩu ngay lập tức.</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+              <p style="color: #999; font-size: 12px;">Email này được gửi tự động, vui lòng không trả lời.</p>
+            </div>
+          `
+        };
+
+        // Ensure transporter is ready
+        const emailTransporter = await getTransporter();
+        if (!emailTransporter) {
+          throw new Error('Email transporter is not configured');
+        }
+        
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          try {
+            // For OAuth2, try Gmail API first (bypasses SMTP, works on Render.com)
+            const useOAuth2 = process.env.GMAIL_CLIENT_ID && 
+                             process.env.GMAIL_CLIENT_SECRET && 
+                             process.env.GMAIL_REFRESH_TOKEN;
+            
+            if (useOAuth2) {
+              // Use Gmail API directly (bypasses SMTP, avoids firewall issues)
+              console.log(`Sending admin login code via Gmail API (attempt ${attempt + 1})...`);
+              await sendEmailViaGmailAPI(mailOptions);
+              console.log('Admin login code sent successfully via Gmail API!');
+              return true;
+            } else {
+              // Fallback to SMTP for non-OAuth2
+              console.log(`Sending admin login code via SMTP (attempt ${attempt + 1})...`);
+              await emailTransporter.sendMail(mailOptions);
+              console.log('Admin login code sent successfully via SMTP!');
+              return true;
+            }
+          } catch (error) {
+            console.error(`Email sending attempt ${attempt + 1} failed:`, error.message);
+            
+            // If it's the last attempt, throw the error
+            if (attempt === retries) {
+              throw error;
+            }
+            
+            // Wait before retry (exponential backoff)
+            const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s...
+            console.log(`Retrying in ${waitTime}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
+        }
+      };
+
+      try {
+        await sendEmailWithRetry(2); // Retry up to 2 times (3 total attempts)
+        return res.json({ 
+          requiresCode: true,
+          email: user.email,
+          message: 'Mã xác nhận đã được gửi đến email của bạn. Vui lòng kiểm tra email và nhập mã để hoàn tất đăng nhập.'
+        });
+      } catch (emailError) {
+        console.error('Email sending error (all retries failed):', emailError);
+        
+        // Clear the code if email fails
+        user.adminLoginCode = undefined;
+        user.adminLoginCodeExpires = undefined;
+        await user.save();
+        
+        // In development, still return the code
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('========================================');
+          console.log('ADMIN LOGIN CODE (Email failed):');
+          console.log(`Email: ${user.email}`);
+          console.log(`Code: ${loginCode}`);
+          console.log('========================================');
+          return res.json({ 
+            requiresCode: true,
+            email: user.email,
+            message: 'Không thể gửi email. Mã xác nhận (xem console):',
+            code: loginCode, // Remove this in production!
+            devMode: true,
+            error: emailError.message
+          });
+        }
+        
+        // Provide more helpful error message
+        let errorMessage = 'Không thể gửi email. Vui lòng thử lại sau.';
+        if (emailError.code === 'ETIMEDOUT' || emailError.code === 'ECONNREFUSED') {
+          errorMessage = 'Không thể kết nối đến máy chủ email. Vui lòng kiểm tra cấu hình email hoặc thử lại sau.';
+        }
+        
+        return res.status(500).json({ message: errorMessage });
+      }
+    }
+
+    // For non-admin users, proceed with normal login
     // Update last login and device
     user.lastLogin = new Date();
     user.device = req.headers['user-agent'] || '';
@@ -722,6 +869,79 @@ router.post('/reset-password', async (req, res) => {
     res.json({ message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại' });
   } catch (error) {
     console.error('Reset password error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Verify admin login code
+router.post('/verify-admin-code', async (req, res) => {
+  const { username, code } = req.body;
+
+  try {
+    if (!username || !code) {
+      return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin' });
+    }
+
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(400).json({ message: 'Tên đăng nhập không tồn tại' });
+    }
+
+    // Check if user is admin
+    if (user.role !== 'admin') {
+      return res.status(403).json({ message: 'Chức năng này chỉ dành cho Admin' });
+    }
+
+    // Check if code exists and is valid
+    if (!user.adminLoginCode || !user.adminLoginCodeExpires) {
+      return res.status(400).json({ message: 'Mã xác nhận không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại' });
+    }
+
+    // Check if code matches
+    if (user.adminLoginCode !== code) {
+      return res.status(400).json({ message: 'Mã xác nhận không chính xác' });
+    }
+
+    // Check if code is expired
+    if (new Date() > user.adminLoginCodeExpires) {
+      user.adminLoginCode = undefined;
+      user.adminLoginCodeExpires = undefined;
+      await user.save();
+      return res.status(400).json({ message: 'Mã xác nhận đã hết hạn. Vui lòng đăng nhập lại' });
+    }
+
+    // Clear the code
+    user.adminLoginCode = undefined;
+    user.adminLoginCodeExpires = undefined;
+
+    // Update last login and device
+    user.lastLogin = new Date();
+    user.device = req.headers['user-agent'] || '';
+    await user.save();
+
+    // Log activity
+    await ActivityLog.create({
+      userId: user._id,
+      action: 'Đăng nhập vào website (Admin với 2FA)',
+      ipAddress: req.ip || req.connection.remoteAddress
+    });
+
+    const token = jwt.sign({ userId: user._id }, getJWTSecret(), {
+      expiresIn: '7d'
+    });
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        balance: user.balance || 0,
+        role: user.role || 'admin'
+      }
+    });
+  } catch (error) {
+    console.error('Verify admin code error:', error);
     res.status(500).json({ message: error.message });
   }
 });

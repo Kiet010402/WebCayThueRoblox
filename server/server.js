@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -15,6 +16,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
+      frameSrc: ["'self'", "https://www.youtube.com", "https://youtube.com", "https://youtu.be"],
+      childSrc: ["'self'", "https://www.youtube.com", "https://youtube.com"],
     },
   },
   crossOriginEmbedderPolicy: false
@@ -115,7 +118,13 @@ app.use('/api/accounts', require('./routes/accounts'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/blindbags', require('./routes/blindbags'));
 
-// Basic route
+// Serve static files from React production build
+// This must come BEFORE the catch-all route
+const buildPath = path.join(__dirname, '../client/build');
+app.use(express.static(buildPath));
+
+// Basic API route (only in development or if not serving React)
+if (process.env.NODE_ENV === 'development' && !process.env.SERVE_REACT) {
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Welcome to Roblox Shop API',
@@ -130,6 +139,7 @@ app.get('/', (req, res) => {
     }
   });
 });
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -138,6 +148,16 @@ app.get('/health', (req, res) => {
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString()
   });
+});
+
+// Catch-all handler: send back React's index.html file for client-side routing
+// This must be AFTER all API routes
+app.get('*', (req, res) => {
+  // Don't serve React app for API routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  res.sendFile(path.join(buildPath, 'index.html'));
 });
 
 // Error handling middleware (must be last)

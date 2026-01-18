@@ -45,12 +45,12 @@ router.post('/', authenticateToken, async (req, res) => {
         return res.status(400).json({ message: 'Loại thẻ không hợp lệ' });
       }
     } else {
-      if (!billImage || typeof billImage !== 'string') {
-        return res.status(400).json({ message: 'Vui lòng upload hình bill' });
-      }
-      // Check if billImage is a valid base64 string
-      if (billImage.length > 10 * 1024 * 1024) { // 10MB limit for base64
-        return res.status(400).json({ message: 'Kích thước ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 5MB' });
+    if (!billImage || typeof billImage !== 'string') {
+      return res.status(400).json({ message: 'Vui lòng upload hình bill' });
+    }
+    // Check if billImage is a valid base64 string
+    if (billImage.length > 10 * 1024 * 1024) { // 10MB limit for base64
+      return res.status(400).json({ message: 'Kích thước ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 5MB' });
       }
     }
 
