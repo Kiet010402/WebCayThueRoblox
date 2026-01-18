@@ -9,7 +9,6 @@ function Wallet() {
   const [recharges, setRecharges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalRecharged, setTotalRecharged] = useState(0);
-  const [totalSpent, setTotalSpent] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -24,7 +23,7 @@ function Wallet() {
     }
 
     try {
-      const [userRes, rechargesRes, allRechargesRes, ordersRes] = await Promise.all([
+      const [userRes, rechargesRes, allRechargesRes] = await Promise.all([
           api.get('/api/users/me', {
           headers: { Authorization: `Bearer ${token}` }
         }),
@@ -32,9 +31,6 @@ function Wallet() {
           headers: { Authorization: `Bearer ${token}` }
         }),
           api.get('/api/recharge/my-recharges?page=1&limit=10000', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-          api.get('/api/orders/my-orders?page=1&limit=10000', {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -48,11 +44,6 @@ function Wallet() {
       const completedRecharges = allRecharges.filter(r => r.status === 'Hoàn thành');
       const totalRechargedAmount = completedRecharges.reduce((sum, r) => sum + (r.amount || 0), 0);
       setTotalRecharged(totalRechargedAmount);
-      
-      // Calculate total spent from ALL orders
-      const allOrders = ordersRes.data.orders || [];
-      const totalSpentAmount = allOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-      setTotalSpent(totalSpentAmount);
       
       // Update user in localStorage
       const updatedUser = { ...JSON.parse(localStorage.getItem('user')), balance: userRes.data.balance };
@@ -97,12 +88,6 @@ function Wallet() {
             <h2>💰 Số Tiền Đã Nạp</h2>
             <div className="balance-amount">
               {totalRecharged.toLocaleString('vi-VN')} <span>đ</span>
-            </div>
-          </div>
-          <div className="balance-card balance-card-spent">
-            <h2>💸 Số Tiền Đã Tiêu</h2>
-            <div className="balance-amount">
-              {totalSpent.toLocaleString('vi-VN')} <span>đ</span>
             </div>
           </div>
         <div className="balance-card">

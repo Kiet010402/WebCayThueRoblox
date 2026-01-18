@@ -1,10 +1,12 @@
+// Load environment variables FIRST before any other requires
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-require('dotenv').config();
 
 const app = express();
 
@@ -124,6 +126,7 @@ app.use('/api/vouchers', require('./routes/vouchers'));
 app.use('/api/accounts', require('./routes/accounts'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/blindbags', require('./routes/blindbags'));
+app.use('/api/upload', require('./routes/upload'));
 
 // Serve static files from React production build
 // This must come BEFORE the catch-all route

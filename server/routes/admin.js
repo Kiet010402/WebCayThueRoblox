@@ -721,14 +721,6 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
       reasonText = `Nạp tiền ${originalAmount.toLocaleString('vi-VN')}đ qua ${getPaymentMethodName(recharge.paymentMethod)} (#${recharge._id.toString().substring(0, 8)})`;
     }
 
-    await BalanceHistory.create({
-      userId: user._id,
-      initialBalance,
-      changeAmount: totalAmount,
-      currentBalance: newBalance,
-      reason: reasonText
-    });
-
     // Log activity
     const ActivityLog = require('../models/ActivityLog');
     let activityText = '';
@@ -744,10 +736,20 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
       activityText = `Nạp tiền ${totalAmount.toLocaleString('vi-VN')}đ qua ${getPaymentMethodName(recharge.paymentMethod)}`;
     }
 
-    await ActivityLog.create({
-      userId: user._id,
-      action: activityText
-    });
+    // Run BalanceHistory and ActivityLog creation in parallel for better performance
+    await Promise.all([
+      BalanceHistory.create({
+        userId: user._id,
+        initialBalance,
+        changeAmount: totalAmount,
+        currentBalance: newBalance,
+        reason: reasonText
+      }),
+      ActivityLog.create({
+        userId: user._id,
+        action: activityText
+      })
+    ]);
 
     // Update monthly recharge stats (for top ranking)
     // Use originalAmount (before fee deduction) for ranking
@@ -756,23 +758,22 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
     const currentMonth = now.getMonth() + 1; // 1-12
     const currentYear = now.getFullYear();
     
-    await MonthlyRechargeStats.findOneAndUpdate(
-      { userId: user._id, month: currentMonth, year: currentYear },
-      { $inc: { totalAmount: originalAmount } },
-      { upsert: true, new: true }
-    );
-
     // Add to revenue (original recharge amount, not after fee deduction, not bonus)
     settings.totalRevenue = (settings.totalRevenue || 0) + originalRechargeAmount;
     settings.updatedAt = new Date();
-    await settings.save();
-
-    // Populate userId before sending response
-    await recharge.populate('userId', 'username email');
-
-    // Convert to plain object for consistent JSON response
+    
+    // Run parallel operations for better performance
     const rechargeObj = recharge.toObject ? recharge.toObject() : recharge;
+    await Promise.all([
+      settings.save(),
+      MonthlyRechargeStats.findOneAndUpdate(
+        { userId: user._id, month: currentMonth, year: currentYear },
+        { $inc: { totalAmount: originalAmount } },
+        { upsert: true, new: true }
+      )
+    ]);
 
+    // Don't populate userId - not needed in response
     res.json({
       message: 'Duyệt nạp tiền thành công',
       recharge: rechargeObj,

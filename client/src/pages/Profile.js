@@ -1,22 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import './Profile.css';
 
 function Profile() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('personal');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(location.state?.activeTab || 'personal');
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activityLogs, setActivityLogs] = useState([]);
   const [balanceHistory, setBalanceHistory] = useState([]);
   const [accountHistory, setAccountHistory] = useState([]);
+  const [rechargeHistory, setRechargeHistory] = useState([]);
   const [activityPage, setActivityPage] = useState(1);
   const [activityTotalPages, setActivityTotalPages] = useState(1);
   const [balancePage, setBalancePage] = useState(1);
   const [balanceTotalPages, setBalanceTotalPages] = useState(1);
   const [accountPage, setAccountPage] = useState(1);
   const [accountTotalPages, setAccountTotalPages] = useState(1);
+  const [rechargePage, setRechargePage] = useState(1);
+  const [rechargeTotalPages, setRechargeTotalPages] = useState(1);
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [selectedRejectionReason, setSelectedRejectionReason] = useState('');
   
   // Change password states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -105,6 +111,19 @@ function Profile() {
     }
   }, [accountPage]);
 
+  const fetchRechargeHistory = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await api.get(`/api/recharge/my-recharges?page=${rechargePage}&limit=5`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setRechargeHistory(response.data.recharges || []);
+      setRechargeTotalPages(response.data.totalPages || 1);
+    } catch (error) {
+      console.error('Error fetching recharge history:', error);
+    }
+  }, [rechargePage]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = JSON.parse(localStorage.getItem('user') || 'null');
@@ -124,11 +143,13 @@ function Profile() {
       fetchBalanceHistory(balancePage, 7);
     } else if (activeTab === 'account-history') {
       fetchAccountHistory();
+    } else if (activeTab === 'recharge-history') {
+      fetchRechargeHistory();
     } else if (activeTab === 'personal') {
       // Fetch all balance history for calculating totals
       fetchBalanceHistory(1, 10000);
     }
-  }, [activeTab, activityPage, balancePage, accountPage, fetchActivityLogs, fetchBalanceHistory, fetchAccountHistory]);
+  }, [activeTab, activityPage, balancePage, accountPage, rechargePage, fetchActivityLogs, fetchBalanceHistory, fetchAccountHistory, fetchRechargeHistory]);
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -238,6 +259,13 @@ function Profile() {
           >
             <span className="sidebar-icon">🎮</span>
             <span>Lịch sử mua acc</span>
+          </div>
+          <div 
+            className={`sidebar-item ${activeTab === 'recharge-history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('recharge-history')}
+          >
+            <span className="sidebar-icon">💳</span>
+            <span>Lịch sử nạp tiền</span>
           </div>
         </div>
 
@@ -722,6 +750,263 @@ function Profile() {
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {activeTab === 'recharge-history' && (
+            <div className="profile-section">
+              <h2 className="section-title">💳 Lịch sử nạp tiền</h2>
+              {rechargeHistory.length === 0 ? (
+                <div className="empty-state">Chưa có lịch sử nạp tiền nào</div>
+              ) : (
+                <>
+                  <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+                    <table style={{ 
+                      width: '100%', 
+                      borderCollapse: 'collapse',
+                      border: '1px solid #ddd',
+                      backgroundColor: 'white'
+                    }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                          <th style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            textAlign: 'left',
+                            fontWeight: 'bold',
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
+                          }}>Ngày</th>
+                          <th style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            textAlign: 'left',
+                            fontWeight: 'bold',
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
+                          }}>Số tiền</th>
+                          <th style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            textAlign: 'left',
+                            fontWeight: 'bold',
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
+                          }}>Phương thức</th>
+                          <th style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            textAlign: 'left',
+                            fontWeight: 'bold',
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
+                          }}>Trạng thái</th>
+                          <th style={{ 
+                            padding: '0.75rem', 
+                            border: '1px solid #ddd',
+                            textAlign: 'center',
+                            fontWeight: 'bold',
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
+                          }}>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rechargeHistory.map((tx, index) => {
+                          const getPaymentMethodName = () => {
+                            if (tx.paymentMethod === 'bank') return 'Chuyển Khoản';
+                            if (tx.paymentMethod === 'momo') return 'MoMo';
+                            if (tx.paymentMethod === 'card') return 'Thẻ Cào';
+                            return 'Thẻ Siêu Rẻ';
+                          };
+
+                          const getStatusDisplay = () => {
+                            if (tx.status === 'Hoàn thành') return '✅ Hoàn thành';
+                            if (tx.status === 'Đang xử lí') return '⏳ Đang xử lí';
+                            return '❌ Từ chối';
+                          };
+
+                          const getStatusColor = () => {
+                            if (tx.status === 'Hoàn thành') return '#4CAF50';
+                            if (tx.status === 'Đang xử lí') return '#FF9800';
+                            return '#f44336';
+                          };
+
+                          return (
+                            <tr 
+                              key={tx._id} 
+                              style={{ 
+                                backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9f9f9',
+                                borderBottom: '1px solid #ddd'
+                              }}
+                            >
+                              <td style={{ 
+                                padding: '0.75rem', 
+                                border: '1px solid #ddd',
+                                color: '#333',
+                                fontSize: '0.9rem',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {formatDate(tx.createdAt)}
+                              </td>
+                              <td style={{ 
+                                padding: '0.75rem', 
+                                border: '1px solid #ddd',
+                                color: '#333',
+                                fontSize: '0.9rem',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {tx.status === 'Hoàn thành' && (tx.cardFee > 0 || tx.bonusAmount > 0) ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    {/* Số tiền gốc (gạch ngang) */}
+                                    {(tx.originalAmount || tx.amount) && (
+                                      <div style={{ fontSize: '0.85rem', color: '#999', textDecoration: 'line-through' }}>
+                                        {(tx.originalAmount || tx.amount).toLocaleString('vi-VN')}đ
+                                      </div>
+                                    )}
+                                    {/* Số tiền thực nhận */}
+                                    <div style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                                      +{tx.amount.toLocaleString('vi-VN')}đ
+                                    </div>
+                                    {/* Phí thẻ */}
+                                    {tx.cardFee > 0 && (
+                                      <div style={{ fontSize: '0.75rem', color: '#d32f2f' }}>
+                                        (-{tx.cardFee.toLocaleString('vi-VN')}đ phí {tx.cardFeePercent || 0}%)
+                                      </div>
+                                    )}
+                                    {/* Khuyến mãi */}
+                                    {tx.bonusAmount > 0 && (
+                                      <div style={{ fontSize: '0.75rem', color: '#4CAF50' }}>
+                                        (+{tx.bonusAmount.toLocaleString('vi-VN')}đ khuyến mãi {tx.promotionPercent || 0}%)
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div>+{tx.amount.toLocaleString('vi-VN')}đ</div>
+                                )}
+                              </td>
+                              <td style={{ 
+                                padding: '0.75rem', 
+                                border: '1px solid #ddd',
+                                color: '#333',
+                                fontSize: '0.9rem',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {getPaymentMethodName()}
+                              </td>
+                              <td style={{ 
+                                padding: '0.75rem', 
+                                border: '1px solid #ddd',
+                                color: getStatusColor(),
+                                fontSize: '0.9rem',
+                                fontWeight: 'bold',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {getStatusDisplay()}
+                              </td>
+                              <td style={{ 
+                                padding: '0.75rem', 
+                                border: '1px solid #ddd',
+                                textAlign: 'center',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {tx.status === 'Từ chối' && tx.rejectionReason && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedRejectionReason(tx.rejectionReason);
+                                      setShowRejectionModal(true);
+                                    }}
+                                    style={{
+                                      padding: '0.4rem 0.8rem',
+                                      background: '#2196F3',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontSize: '0.85rem',
+                                      fontWeight: 'bold'
+                                    }}
+                                  >
+                                    Chi tiết
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {rechargeTotalPages > 1 && (
+                    <div className="pagination">
+                      <button
+                        onClick={() => setRechargePage(prev => Math.max(1, prev - 1))}
+                        disabled={rechargePage === 1}
+                      >
+                        ← Trước
+                      </button>
+                      <span>Trang {rechargePage} / {rechargeTotalPages}</span>
+                      <button
+                        onClick={() => setRechargePage(prev => Math.min(rechargeTotalPages, prev + 1))}
+                        disabled={rechargePage === rechargeTotalPages}
+                      >
+                        Sau →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Rejection Reason Modal */}
+          {showRejectionModal && (
+            <div 
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 1000
+              }}
+              onClick={() => setShowRejectionModal(false)}
+            >
+              <div 
+                style={{
+                  background: 'white',
+                  padding: '2rem',
+                  borderRadius: '8px',
+                  maxWidth: '500px',
+                  width: '90%',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 style={{ marginTop: 0, color: '#333' }}>⚠️ Lý do từ chối</h3>
+                <p style={{ color: '#666', lineHeight: '1.6', marginBottom: '1.5rem' }}>
+                  {selectedRejectionReason}
+                </p>
+                <button
+                  onClick={() => setShowRejectionModal(false)}
+                  style={{
+                    padding: '0.6rem 1.5rem',
+                    background: '#2196F3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           )}
         </div>

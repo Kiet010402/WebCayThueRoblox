@@ -94,6 +94,30 @@ function Recharge() {
 
     setLoading(true);
     try {
+      let billImageUrl = billImage;
+
+      // Upload image to Cloudinary if payment method is not card
+      if (paymentMethod !== 'card' && billImage) {
+        try {
+          const uploadResponse = await api.post('/api/upload/image', 
+            { image: billImage },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          billImageUrl = uploadResponse.data.imageUrl;
+        } catch (uploadError) {
+          console.error('Upload error:', uploadError);
+          const errorMsg = uploadError.response?.data?.message || 'Có lỗi xảy ra khi upload ảnh';
+          alert(errorMsg);
+          setLoading(false);
+          return;
+        }
+      }
+
       const requestData = {
         amount: amount,
         paymentMethod
@@ -104,7 +128,7 @@ function Recharge() {
         requestData.cardCode = cardCode;
         requestData.cardSerial = cardSerial;
       } else {
-        requestData.billImage = billImage;
+        requestData.billImage = billImageUrl; // Use Cloudinary URL instead of base64
       }
 
       await api.post('/api/recharge', requestData, {
@@ -123,7 +147,7 @@ function Recharge() {
         setCardCode('');
         setCardSerial('');
       }
-      navigate('/wallet');
+      navigate('/profile', { state: { activeTab: 'recharge-history' } });
     } catch (error) {
       console.error('Recharge error:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Có lỗi xảy ra khi nạp tiền';

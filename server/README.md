@@ -19,7 +19,14 @@ PORT=5000
 EMAIL_SERVICE=gmail
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASSWORD=your_app_password
+
+# Cloudinary configuration for image storage
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 ```
+
+**Note:** See `CLOUDINARY_SETUP.md` for detailed Cloudinary setup instructions.
 
 **Note:** For Gmail, you need to:
 1. Enable 2-factor authentication

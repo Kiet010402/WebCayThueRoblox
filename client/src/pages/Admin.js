@@ -843,8 +843,8 @@ function Admin() {
       setCardFeePercent('');
       
       // Update state immediately (same pattern as reject)
-      const updatedRecharge = res.data?.recharge;
-      if (updatedRecharge) {
+      const updatedRecharge = res.data?.recharge || res.data;
+      if (updatedRecharge && updatedRecharge._id) {
         // Check if it was pending before update
         setRecharges(prev => {
           const currentRecharge = prev.find(r => r._id === rechargeId);
@@ -852,7 +852,7 @@ function Admin() {
           
           const next = prev.map(r => {
             if (r._id === rechargeId) {
-              return { ...r, ...updatedRecharge };
+              return { ...r, ...updatedRecharge, status: 'Hoàn thành', processedAt: updatedRecharge.processedAt || new Date() };
             }
             return r;
           });

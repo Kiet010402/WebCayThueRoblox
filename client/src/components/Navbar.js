@@ -47,7 +47,6 @@ function Navbar({ user, onLogout }) {
           <li><Link to="/nick-roblox" onClick={closeMenu}>Nick Roblox</Link></li>
           <li><Link to="/history" onClick={closeMenu}>Lịch Sử</Link></li>
           <li><Link to="/recharge" onClick={closeMenu}>Nạp Tiền</Link></li>
-          <li><Link to="/wallet" onClick={closeMenu}>Dùng Tiền</Link></li>
           <li><Link to="/news" onClick={closeMenu}>Tin Tức</Link></li>
         </ul>
       </div>
