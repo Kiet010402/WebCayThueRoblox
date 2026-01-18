@@ -796,12 +796,20 @@ router.put('/recharges/:id/reject', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Recharge request not found' });
     }
 
+    // Prevent rejecting a completed recharge
+    if (recharge.status === 'Hoàn thành') {
+      return res.status(400).json({ message: 'Không thể từ chối yêu cầu nạp tiền đã được duyệt' });
+    }
+
     recharge.status = 'Từ chối';
     recharge.rejectionReason = rejectionReason || '';
     recharge.processedAt = new Date();
     await recharge.save();
 
-    res.json({ message: 'Từ chối nạp tiền thành công', recharge });
+    // Convert to plain object for consistent JSON response
+    const rechargeObj = recharge.toObject ? recharge.toObject() : recharge;
+
+    res.json({ message: 'Từ chối nạp tiền thành công', recharge: rechargeObj });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
