@@ -836,40 +836,43 @@ function Admin() {
         requestData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      
+      // Update state immediately
+        setRecharges(prev => {
+        const currentRecharge = prev.find(r => r._id === rechargeId);
+        const wasPending = currentRecharge?.status === 'Đang xử lí';
+        
+          const next = prev.map(r => {
+            if (r._id === rechargeId) {
+            // Use updated recharge from response, ensuring status is set
+            const updatedRecharge = res.data?.recharge || {};
+            const mergedRecharge = { 
+              ...r, 
+              ...updatedRecharge,
+              status: 'Hoàn thành', // Ensure status is set correctly
+              processedAt: updatedRecharge.processedAt || new Date().toISOString()
+            };
+            // Preserve userId if it exists in current state but not in updatedRecharge
+            if (!mergedRecharge.userId && r.userId) {
+              mergedRecharge.userId = r.userId;
+            }
+            return mergedRecharge;
+            }
+            return r;
+          });
+        
+        // Decrease pending count if it was pending
+        if (wasPending) {
+          setPendingRechargesCount(count => Math.max(0, count - 1));
+        }
+        
+        return next;
+      });
+      
       alert('Duyệt nạp tiền thành công!');
       setShowCardFeeModal(false);
       setSelectedRechargeForFee(null);
       setCardFeePercent('');
-      const updatedRecharge = res.data?.recharge;
-      if (updatedRecharge) {
-        // Check if it was pending before update
-        setRecharges(prev => {
-          const currentRecharge = prev.find(r => r._id === rechargeId);
-          const wasPending = currentRecharge?.status === 'Đang xử lí';
-          
-          const next = prev.map(r => {
-            if (r._id === rechargeId) {
-              // Preserve userId if it exists in current state but not in updatedRecharge
-              const mergedRecharge = { ...r, ...updatedRecharge };
-              if (!mergedRecharge.userId && r.userId) {
-                mergedRecharge.userId = r.userId;
-              }
-              return mergedRecharge;
-            }
-            return r;
-          });
-          
-          // Decrease pending count if it was pending
-          if (wasPending) {
-          setPendingRechargesCount(count => Math.max(0, count - 1));
-        }
-          
-          return next;
-        });
-      } else {
-        // Fallback: reload if server didn't send updated recharge
-      fetchData();
-      }
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
     }

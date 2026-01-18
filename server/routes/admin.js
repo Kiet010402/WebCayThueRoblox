@@ -757,9 +757,12 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
     // Populate userId before sending response
     await recharge.populate('userId', 'username email');
 
+    // Convert to plain object for consistent JSON response
+    const rechargeObj = recharge.toObject ? recharge.toObject() : recharge;
+
     res.json({
       message: 'Duyệt nạp tiền thành công',
-      recharge,
+      recharge: rechargeObj,
       user: {
         id: user._id,
         username: user.username,
