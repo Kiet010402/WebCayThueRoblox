@@ -842,28 +842,42 @@ function Admin() {
       setSelectedRechargeForFee(null);
       setCardFeePercent('');
       
-      // Update state immediately (same pattern as reject)
+      // Update state immediately
       const updatedRecharge = res.data?.recharge || res.data;
-      if (updatedRecharge && updatedRecharge._id) {
+      const rechargeIdStr = rechargeId?.toString();
+      
+      if (updatedRecharge) {
         // Check if it was pending before update
         setRecharges(prev => {
-          const currentRecharge = prev.find(r => r._id === rechargeId);
+          // Find current recharge to check status
+          const currentRecharge = prev.find(r => {
+            const rId = r._id?.toString();
+            return rId === rechargeIdStr || r._id === rechargeId;
+          });
           const wasPending = currentRecharge?.status === 'Đang xử lí';
           
+          // Update the recharge in the array
           const next = prev.map(r => {
-            if (r._id === rechargeId) {
+            const rId = r._id?.toString();
+            const matches = rId === rechargeIdStr || r._id === rechargeId;
+            
+            if (matches) {
               // Ensure userId is preserved if it's populated in updatedRecharge
-              // If updatedRecharge.userId is an object (populated), use it; otherwise keep original
               const userId = (updatedRecharge.userId && typeof updatedRecharge.userId === 'object' && updatedRecharge.userId.username)
                 ? updatedRecharge.userId
                 : (r.userId || updatedRecharge.userId);
               
-              return { 
-                ...r, 
-                ...updatedRecharge, 
-                userId, // Explicitly set userId to ensure it's populated
-                status: 'Hoàn thành', 
-                processedAt: updatedRecharge.processedAt || new Date() 
+              // Build update object - explicitly exclude status from updatedRecharge
+              const updateData = { ...updatedRecharge };
+              delete updateData.status; // Remove status if it exists
+              
+              // Create new object with explicit status
+              return {
+                ...r,
+                ...updateData,
+                userId,
+                processedAt: updatedRecharge.processedAt || new Date(),
+                status: 'Hoàn thành' // ALWAYS override to 'Hoàn thành'
               };
             }
             return r;
@@ -871,14 +885,14 @@ function Admin() {
           
           // Decrease pending count if it was pending
           if (wasPending) {
-          setPendingRechargesCount(count => Math.max(0, count - 1));
-        }
+            setPendingRechargesCount(count => Math.max(0, count - 1));
+          }
           
           return next;
         });
       } else {
         // Fallback: reload if server didn't send updated recharge
-      fetchData();
+        fetchData();
       }
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
