@@ -169,9 +169,6 @@ router.get('/conversations', authenticate, async (req, res) => {
 
     const userIds = conversations[0]?.userIds || [];
     
-    console.log('Current User ID:', req.userId);
-    console.log('Found conversations with user IDs:', userIds);
-    
     // Get latest message for each conversation
     const conversationList = await Promise.all(
       userIds.map(async (otherUserId) => {
@@ -211,8 +208,6 @@ router.get('/conversations', authenticate, async (req, res) => {
       if (!b.lastMessageTime) return -1;
       return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
     });
-
-    console.log('Returning conversations:', conversationList.length);
     
     res.json({ conversations: conversationList });
   } catch (error) {

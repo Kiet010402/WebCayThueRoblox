@@ -1,0 +1,22 @@
+# Build Command cho Render.com
+
+Dán vào Build Command field:
+
+```
+cd client && npm install && npm run build && cd .. && npm install
+```
+
+## Giải thích từng bước:
+
+1. `cd client` - Vào thư mục client
+2. `npm install` - Cài dependencies cho client (react-app-rewired, webpack-obfuscator, v.v.)
+3. `npm run build` - Build production với obfuscation (tạo folder build/)
+4. `cd ..` - Quay về thư mục gốc
+5. `npm install` - Cài dependencies cho server (Express, MongoDB, v.v.)
+
+## Kết quả:
+
+✅ Client được build vào `client/build/`
+✅ Code JavaScript đã được obfuscate
+✅ Source maps đã bị tắt
+✅ Server sẽ serve folder `client/build/` tự động

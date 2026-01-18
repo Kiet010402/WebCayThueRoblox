@@ -749,6 +749,19 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
       action: activityText
     });
 
+    // Update monthly recharge stats (for top ranking)
+    // Use originalAmount (before fee deduction) for ranking
+    const MonthlyRechargeStats = require('../models/MonthlyRechargeStats');
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentYear = now.getFullYear();
+    
+    await MonthlyRechargeStats.findOneAndUpdate(
+      { userId: user._id, month: currentMonth, year: currentYear },
+      { $inc: { totalAmount: originalAmount } },
+      { upsert: true, new: true }
+    );
+
     // Add to revenue (original recharge amount, not after fee deduction, not bonus)
     settings.totalRevenue = (settings.totalRevenue || 0) + originalRechargeAmount;
     settings.updatedAt = new Date();
@@ -1181,6 +1194,30 @@ router.delete('/games/:id', authenticateAdmin, async (req, res) => {
     }
     res.json({ message: 'Xóa game thành công' });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Reset top monthly recharge stats
+router.post('/top-month/reset', authenticateAdmin, async (req, res) => {
+  try {
+    const MonthlyRechargeStats = require('../models/MonthlyRechargeStats');
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    // Delete all records for current month
+    const result = await MonthlyRechargeStats.deleteMany({
+      month: currentMonth,
+      year: currentYear
+    });
+
+    res.json({ 
+      message: 'Reset top nạp tháng thành công',
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Error resetting top month:', error);
     res.status(500).json({ message: error.message });
   }
 });

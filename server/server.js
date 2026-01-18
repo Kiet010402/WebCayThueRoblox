@@ -9,8 +9,11 @@ require('dotenv').config();
 const app = express();
 
 // Trust proxy - required for Render.com and other cloud platforms
-// This allows Express to correctly identify client IPs from X-Forwarded-For header
-app.set('trust proxy', true);
+// Only enable in production (when behind a proxy like Render.com)
+// In development, disable it to avoid rate limiting bypass warnings
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // Trust only 1 proxy (Render.com)
+}
 
 // Security headers
 app.use(helmet({

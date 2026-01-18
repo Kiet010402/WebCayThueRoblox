@@ -859,14 +859,14 @@ function Admin() {
           
           // Decrease pending count if it was pending
           if (wasPending) {
-            setPendingRechargesCount(count => Math.max(0, count - 1));
-          }
+          setPendingRechargesCount(count => Math.max(0, count - 1));
+        }
           
           return next;
         });
       } else {
         // Fallback: reload if server didn't send updated recharge
-        fetchData();
+      fetchData();
       }
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
@@ -900,6 +900,24 @@ function Admin() {
     } catch (error) {
       console.error('Error updating recharge promotion:', error);
       alert(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật khuyến mãi');
+    }
+  };
+
+  const handleResetTopMonth = async () => {
+    if (!window.confirm('Bạn có chắc muốn reset top nạp tháng? Hành động này sẽ xóa tất cả dữ liệu top nạp tháng hiện tại.')) {
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    try {
+      await api.post('/api/admin/top-month/reset', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      alert('Reset top nạp tháng thành công!');
+    } catch (error) {
+      console.error('Error resetting top month:', error);
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi reset top nạp tháng');
     }
   };
 
@@ -1493,7 +1511,16 @@ function Admin() {
                     />
                   </div>
                 </div>
-              </div>
+                <div className="reset-top-month-section">
+                  <button
+                    className="btn-reset-top-month"
+                    onClick={handleResetTopMonth}
+                  >
+                    <span className="reset-icon">🔄</span>
+                    Reset Top Nạp Tháng
+        </button>
+                </div>
+      </div>
             </>
           )}
 

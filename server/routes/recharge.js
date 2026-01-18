@@ -116,21 +116,18 @@ router.get('/my-recharges', authenticateToken, async (req, res) => {
 // Get top recharges for current month (public endpoint)
 router.get('/top-month', async (req, res) => {
   try {
+    const MonthlyRechargeStats = require('../models/MonthlyRechargeStats');
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentYear = now.getFullYear();
     
-    const topRecharges = await Recharge.aggregate([
+    // Get top 5 users for current month
+    const topRecharges = await MonthlyRechargeStats.aggregate([
       {
         $match: {
-          status: 'Hoàn thành',
-          createdAt: { $gte: startOfMonth },
-          deleted: { $ne: true }
-        }
-      },
-      {
-        $group: {
-          _id: '$userId',
-          totalAmount: { $sum: '$amount' }
+          month: currentMonth,
+          year: currentYear,
+          totalAmount: { $gt: 0 }
         }
       },
       {
@@ -142,7 +139,7 @@ router.get('/top-month', async (req, res) => {
       {
         $lookup: {
           from: 'users',
-          localField: '_id',
+          localField: 'userId',
           foreignField: '_id',
           as: 'user'
         }

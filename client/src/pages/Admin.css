@@ -1105,6 +1105,112 @@
   box-sizing: border-box;
 }
 
+.reset-top-month-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: center;
+}
+
+.btn-reset-top-month {
+  padding: 1rem 2.5rem;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  color: white;
+  box-shadow: 0 8px 24px rgba(25, 118, 210, 0.2);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 1;
+}
+
+/* Animated gradient background - wave effect */
+.btn-reset-top-month::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transition: left 0.5s;
+}
+
+.btn-reset-top-month:hover::before {
+  left: 100%;
+}
+
+/* Base gradient background with animation */
+.btn-reset-top-month {
+  background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 50%, #bbdefb 100%);
+  background-size: 200% 200%;
+  animation: gradientWave 3s ease infinite;
+}
+
+@keyframes gradientWave {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.btn-reset-top-month:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(25, 118, 210, 0.4);
+}
+
+.btn-reset-top-month:active {
+  transform: translateY(-1px);
+}
+
+.reset-icon {
+  font-size: 1.3rem;
+  z-index: 2;
+  position: relative;
+  filter: drop-shadow(0 2px 4px rgba(33, 150, 243, 0.3));
+}
+
+.btn-reset-top-month {
+  color: #1976D2;
+  font-weight: bold;
+}
+
+.btn-reset-top-month::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 12px;
+  padding: 2px;
+  background: linear-gradient(45deg, #2196F3, #1976D2, #0d47a1, #2196F3);
+  background-size: 300% 300%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: gradientWave 3s ease infinite;
+  z-index: 0;
+  opacity: 0.5;
+}
+
 @media (max-width: 768px) {
   .admin-container {
     padding: 1rem;

@@ -12,6 +12,9 @@ function CayThue() {
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [voucherMessage, setVoucherMessage] = useState('');
   const [applyingVoucher, setApplyingVoucher] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [orderDetails, setOrderDetails] = useState(null);
   
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -180,6 +183,11 @@ function CayThue() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Prevent multiple submissions
+    if (isSubmitting) {
+      return;
+    }
+    
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || 'null');
     
@@ -197,6 +205,15 @@ function CayThue() {
       alert('Vui lòng chọn loại dịch vụ');
       return;
     }
+    
+    // Backup code is always required
+    if (!formData.backupCode || !formData.backupCode.trim()) {
+      alert('Vui lòng nhập Backup Code');
+      return;
+    }
+
+    // Set submitting state to prevent multiple submissions
+    setIsSubmitting(true);
 
     try {
       // Tính giá sau khi áp dụng giảm giá game
@@ -243,25 +260,24 @@ function CayThue() {
         console.error('Error refreshing balance:', err);
       }
 
-      // Show success message with discount info if applicable
+      // Store order details and show success modal
       const order = response.data;
-      let successMsg = `Đặt dịch vụ ${selectedService.name} cho game ${selectedGame.name} thành công!\n`;
-      successMsg += `Giá gốc: ${order.originalAmount.toLocaleString('vi-VN')}đ\n`;
-      const totalDiscount = order.totalDiscountAmount || order.discountAmount || 0;
-      if (totalDiscount > 0) {
-        successMsg += `Tổng giảm: -${totalDiscount.toLocaleString('vi-VN')}đ\n`;
-        if (order.gameDiscountPercent && order.gameDiscountAmount > 0) {
-          successMsg += `- Khuyến mãi ${order.gameDiscountPercent}%: -${order.gameDiscountAmount.toLocaleString('vi-VN')}đ\n`;
-        }
-        if (order.discount && order.discountAmount > 0) {
-          successMsg += `- Giảm tài khoản ${order.discount}%: -${order.discountAmount.toLocaleString('vi-VN')}đ\n`;
-        }
-        if (order.voucherCode && order.voucherDiscount && order.voucherDiscountAmount > 0) {
-          successMsg += `- Voucher ${order.voucherCode} ${order.voucherDiscount}%: -${order.voucherDiscountAmount.toLocaleString('vi-VN')}đ\n`;
-        }
-      }
-      successMsg += `Giá sau giảm: ${order.totalAmount.toLocaleString('vi-VN')}đ`;
-      alert(successMsg);
+      setOrderDetails({
+        orderId: order._id || order.id,
+        serviceName: selectedService.name,
+        gameName: selectedGame.name,
+        originalAmount: order.originalAmount,
+        totalDiscountAmount: order.totalDiscountAmount || order.discountAmount || 0,
+        gameDiscountPercent: order.gameDiscountPercent || 0,
+        gameDiscountAmount: order.gameDiscountAmount,
+        discount: order.discount,
+        discountAmount: order.discountAmount,
+        voucherCode: order.voucherCode,
+        voucherDiscount: order.voucherDiscount,
+        voucherDiscountAmount: order.voucherDiscountAmount,
+        totalAmount: order.totalAmount
+      });
+      setShowSuccessModal(true);
       
       // Reset form
     setSelectedGame(null);
@@ -271,13 +287,13 @@ function CayThue() {
       setVoucherCode('');
       setAppliedVoucher(null);
       setVoucherMessage('');
-      
-      // Navigate to history
-      navigate('/history');
     } catch (error) {
       console.error('Error creating order:', error);
       const errorMsg = error.response?.data?.message || 'Có lỗi xảy ra khi đặt dịch vụ. Vui lòng thử lại.';
       alert(errorMsg);
+    } finally {
+      // Reset submitting state after request completes (success or error)
+      setIsSubmitting(false);
     }
   };
 
@@ -299,7 +315,8 @@ function CayThue() {
           ) : (
             games.map((game) => (
             <div key={game.id} className="game-card" onClick={() => handleGameClick(game)}>
-              {game.badge && <div className="game-badge">{game.badge}</div>}
+              {/* Hide regular badge when there's a discount badge */}
+              {game.badge && !game.discountPercent && <div className="game-badge">{game.badge}</div>}
               {game.discountPercent && game.discountPercent > 0 && (
                 <div className="game-discount-badge">Khuyến mãi {game.discountPercent}%</div>
               )}
@@ -592,7 +609,7 @@ function CayThue() {
               </div>
 
               <div className="form-row">
-                <div className="form-group full-width">
+                <div className="form-group">
                   <label>Tên đăng nhập roblox (*)</label>
                   <input
                     type="text"
@@ -603,10 +620,7 @@ function CayThue() {
                     required
                   />
                 </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group full-width">
+                <div className="form-group">
                   <label>Mật khẩu đăng nhập roblox (*)</label>
                   <input
                     type="password"
@@ -620,33 +634,88 @@ function CayThue() {
               </div>
 
               <div className="form-row">
-                <div className="form-group full-width">
-                  <label>Backup Code</label>
+                <div className="form-group">
+                  <label>Backup Code (*)</label>
                   <input
                     type="text"
                     name="backupCode"
                     value={formData.backupCode || ''}
                     onChange={handleInputChange}
                     placeholder="Nhập backup code"
+                    required
                   />
                 </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group full-width">
+                <div className="form-group">
                   <label>Ghi chú đơn hàng nếu có</label>
                   <textarea
                     name="notes"
                     value={formData.notes}
                     onChange={handleInputChange}
                     placeholder="Ghi chú thêm nếu có"
-                    rows="5"
+                    rows="3"
                   ></textarea>
                 </div>
               </div>
 
-              <button type="submit" className="btn-submit">Xác Nhận</button>
+              <button type="submit" className="btn-submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Đang xử lý...' : 'Xác Nhận'}
+              </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && orderDetails && (
+        <div className="modal-overlay" onClick={() => {
+          setShowSuccessModal(false);
+          navigate('/history');
+        }}>
+          <div className="modal-content success-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Đặt đơn thành công - {orderDetails.gameName}</h2>
+              <button className="modal-close" onClick={() => {
+                setShowSuccessModal(false);
+                navigate('/history');
+              }}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="success-content">
+                <div className="service-name-text">- {orderDetails.serviceName}</div>
+                
+                <div className="order-summary-compact">
+                  <div className="summary-row">
+                    <span className="summary-label-compact">- Mã đơn:</span>
+                    <span className="summary-value-compact">{orderDetails.orderId ? orderDetails.orderId.toString().substring(0, 8).toUpperCase() : 'N/A'}</span>
+                  </div>
+                  
+                  <div className="summary-row">
+                    <span className="summary-label-compact">- Giá:</span>
+                    <span className={`summary-value-compact ${orderDetails.totalDiscountAmount > 0 ? 'strikethrough' : ''}`}>
+                      {orderDetails.originalAmount.toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                  
+                  <div className="summary-row">
+                    <span className="summary-label-compact">- Khuyến mãi:</span>
+                    <span className="summary-value-compact discount">{orderDetails.gameDiscountPercent || 0}%</span>
+                  </div>
+                  
+                  <div className="summary-row total">
+                    <span className="summary-label-compact">- Tổng tiền:</span>
+                    <span className="summary-value-compact total">{orderDetails.totalAmount.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-close-modal" onClick={() => {
+                setShowSuccessModal(false);
+                navigate('/history');
+              }}>
+                Xem lịch sử
+              </button>
+            </div>
           </div>
         </div>
       )}
