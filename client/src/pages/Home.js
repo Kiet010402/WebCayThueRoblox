@@ -326,14 +326,7 @@ function Home() {
       <div className="info-section">
         <div className="info-grid">
           <div className="info-card">
-            <h3>📱 LIÊN HỆ VỚI CHÚNG TÔI</h3>
-            <p><strong>Discord:</strong> Kaihon</p>
-            <p><strong>Gmail:</strong> dkiet9337@gmail.com</p>
-            <p><strong>Số điện thoại:</strong> 0936596825</p>
-          </div>
-
-          <div className="info-card">
-            <h3>🎁 ƯU ĐÃI ĐẶC BIỆT</h3>
+            <h3>🎁 ĐẶC BIỆT</h3>
             <p>✅ Hỗ Trợ 24/7</p>
             <p>✅ Hoàn Tiền 100% Nếu Lỗi</p>
           </div>
