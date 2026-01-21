@@ -1,33 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const Order = require('../models/Order');
-const { getJWTSecret } = require('../utils/auth');
 const User = require('../models/User');
 const BalanceHistory = require('../models/BalanceHistory');
 const Voucher = require('../models/Voucher');
 const { validateObjectId } = require('../utils/validation');
-
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  jwt.verify(token, getJWTSecret(), (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: 'Token không hợp lệ' });
-    }
-    req.userId = decoded.userId;
-    next();
-  });
-};
+const { authenticateSession } = require('../middleware/sessionAuth');
 
 // Get user orders
-router.get('/user/:userId', authenticateToken, async (req, res) => {
+router.get('/user/:userId', authenticateSession, async (req, res) => {
   try {
     // Verify that the userId matches the authenticated user
     if (req.params.userId !== req.userId.toString()) {
@@ -41,7 +22,7 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
 });
 
 // Get current user orders (using token) with pagination
-router.get('/my-orders', authenticateToken, async (req, res) => {
+router.get('/my-orders', authenticateSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
@@ -68,7 +49,7 @@ router.get('/my-orders', authenticateToken, async (req, res) => {
 });
 
 // Create order
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateSession, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) {

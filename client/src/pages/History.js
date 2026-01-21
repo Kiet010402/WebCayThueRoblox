@@ -19,20 +19,10 @@ function History() {
 
   useEffect(() => {
     const fetchOrders = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
       try {
         const [pageRes, allRes] = await Promise.all([
-          api.get(`/api/orders/my-orders?page=${currentPage}&limit=5`, {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          api.get('/api/orders/my-orders?page=1&limit=10000', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
+          api.get(`/api/orders/my-orders?page=${currentPage}&limit=5`),
+          api.get('/api/orders/my-orders?page=1&limit=10000')
         ]);
         
         const pageOrders = pageRes.data.orders || [];
@@ -330,25 +320,13 @@ function History() {
                   {(() => {
                     const originalAmount = item.originalAmount || item.totalAmount || 0;
                     const totalAmount = item.totalAmount || 0;
-                    
-                    // Tính tổng discount từ nhiều nguồn
-                    const gameDiscountAmount = item.gameDiscountAmount || 0;
-                    const accountDiscountAmount = item.discountAmount || 0;
-                    const voucherDiscountAmount = item.voucherDiscountAmount || 0;
-                    const totalDiscountAmount = item.totalDiscountAmount || 
-                                               (gameDiscountAmount + accountDiscountAmount + voucherDiscountAmount) ||
-                                               0;
-                    
-                    // Tính % giảm giá tổng - ưu tiên tính từ originalAmount và totalAmount
-                    let discountPercent = 0;
-                    if (originalAmount > 0 && originalAmount > totalAmount) {
-                      // Tính từ sự chênh lệch giữa giá gốc và giá sau giảm
-                      discountPercent = Math.round(((originalAmount - totalAmount) / originalAmount) * 100);
-                    } else if (originalAmount > 0 && totalDiscountAmount > 0) {
-                      // Fallback: tính từ totalDiscountAmount
-                      discountPercent = Math.round((totalDiscountAmount / originalAmount) * 100);
-                    }
-                    
+
+                    // Lấy % khuyến mãi giống popup (game + tài khoản + voucher)
+                    const gameDiscountPercent = Number(item.gameDiscountPercent || 0);
+                    const accountDiscountPercent = Number(item.discount || 0);
+                    const voucherDiscountPercent = Number(item.voucherDiscount || 0);
+                    const discountPercent = gameDiscountPercent + accountDiscountPercent + voucherDiscountPercent;
+
                     // Hiển thị discount nếu có giảm giá
                     const hasDiscount = originalAmount > totalAmount && totalAmount > 0 && discountPercent > 0;
                     

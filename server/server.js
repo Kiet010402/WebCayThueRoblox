@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 
 const app = express();
@@ -60,6 +61,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
 
 // Rate limiting - Adjusted to be less restrictive
 const generalLimiter = rateLimit({
@@ -127,6 +129,7 @@ app.use('/api/accounts', require('./routes/accounts'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/blindbags', require('./routes/blindbags'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/activities', require('./routes/activities'));
 
 // Serve static files from React production build
 // This must come BEFORE the catch-all route

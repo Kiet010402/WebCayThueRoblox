@@ -21,11 +21,15 @@ function NickRoblox() {
   const [blindBagsLoading] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = JSON.parse(localStorage.getItem('user') || 'null');
-    if (token && userData) {
-      setUser(userData);
-    }
+    // Fetch user info from API (using session cookie)
+    api.get('/api/users/me')
+      .then(response => {
+        setUser(response.data);
+      })
+      .catch(err => {
+        console.error('Error fetching user:', err);
+        setUser(null);
+      });
   }, []);
 
   useEffect(() => {
@@ -122,13 +126,7 @@ function NickRoblox() {
   };
 
   const handleBuyAccount = async (account) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('Vui lòng đăng nhập để mua account');
-      navigate('/login');
-      return;
-    }
-
+    // Check if user is logged in
     if (!user) {
       alert('Vui lòng đăng nhập để mua account');
       navigate('/login');
@@ -147,9 +145,7 @@ function NickRoblox() {
     }
 
     try {
-      const res = await api.post(`/api/accounts/${account._id}/purchase`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.post(`/api/accounts/${account._id}/purchase`, {});
       
       setPurchasedAccount({
         username: res.data.account.username,
@@ -159,10 +155,8 @@ function NickRoblox() {
       });
       setShowPurchaseModal(true);
       
-      // Update user balance
-      const updatedUser = { ...user, balance: res.data.newBalance };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Update user balance (don't store in localStorage)
+      setUser({ ...user, balance: res.data.newBalance });
       window.dispatchEvent(new Event('userBalanceUpdated'));
       
       // Refresh accounts list
@@ -201,13 +195,7 @@ function NickRoblox() {
   };
 
   const handleBuyBlindBag = async (blindBag) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('Vui lòng đăng nhập để mua túi mù');
-      navigate('/login');
-      return;
-    }
-
+    // Check if user is logged in
     if (!user) {
       alert('Vui lòng đăng nhập để mua túi mù');
       navigate('/login');
@@ -226,9 +214,7 @@ function NickRoblox() {
     }
 
     try {
-      const res = await api.post(`/api/blindbags/${blindBag._id}/purchase`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.post(`/api/blindbags/${blindBag._id}/purchase`, {});
       
       setPurchasedAccount({
         username: res.data.account.username,
@@ -238,10 +224,8 @@ function NickRoblox() {
       });
       setShowPurchaseModal(true);
       
-      // Update user balance
-      const updatedUser = { ...user, balance: res.data.newBalance };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Update user balance (don't store in localStorage)
+      setUser({ ...user, balance: res.data.newBalance });
       window.dispatchEvent(new Event('userBalanceUpdated'));
       
       // Refresh blind bags list

@@ -122,9 +122,16 @@ function Login({ setUser }) {
       }
 
       // Normal login for non-admin users
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      setUser(response.data.user);
+      // Token is now stored in httpOnly cookie, don't save to localStorage
+      // Only save minimal user info (no token, no email)
+      const userInfo = {
+        id: response.data.user.id,
+        username: response.data.user.username,
+        balance: response.data.user.balance || 0,
+        role: response.data.user.role || 'user'
+      };
+      // Don't store user in localStorage for security
+      setUser(userInfo);
       setSuccess('✅ Đăng nhập thành công! Đang chuyển hướng...');
       
       setTimeout(() => {
@@ -161,9 +168,16 @@ function Login({ setUser }) {
         code: adminCodeData.code
       });
 
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      setUser(response.data.user);
+      // Token is now stored in httpOnly cookie, don't save to localStorage
+      // Only save minimal user info
+      const userInfo = {
+        id: response.data.user.id,
+        username: response.data.user.username,
+        balance: response.data.user.balance || 0,
+        role: response.data.user.role || 'admin'
+      };
+      // Don't store user in localStorage for security
+      setUser(userInfo);
       setSuccess('✅ Xác thực thành công! Đang chuyển hướng...');
       
       setTimeout(() => {

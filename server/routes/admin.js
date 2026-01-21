@@ -1,9 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { validateObjectId } = require('../utils/validation');
-const { getJWTSecret } = require('../utils/auth');
 const Order = require('../models/Order');
 const Recharge = require('../models/Recharge');
 const Settings = require('../models/Settings');
@@ -15,32 +13,10 @@ const Account = require('../models/Account');
 const Game = require('../models/Game');
 const defaultCayThuePricing = require('../data/defaultCayThuePricing');
 const mongoose = require('mongoose');
-
-// Middleware to verify admin
-const authenticateAdmin = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, getJWTSecret());
-    const user = await User.findById(decoded.userId);
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ message: 'Không có quyền truy cập' });
-    }
-    req.userId = decoded.userId;
-    req.admin = user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: 'Token không hợp lệ' });
-  }
-};
+const { authenticateAdminSession } = require('../middleware/sessionAuth');
 
 // Get all users with pagination and search
-router.get('/users', authenticateAdmin, async (req, res) => {
+router.get('/users', authenticateAdminSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
@@ -72,7 +48,7 @@ router.get('/users', authenticateAdmin, async (req, res) => {
 });
 
 // Get user by ID
-router.get('/users/:id', authenticateAdmin, async (req, res) => {
+router.get('/users/:id', authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId
     if (!validateObjectId(req.params.id)) {
@@ -87,7 +63,7 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Get user orders and recharges (optimized with limits)
-router.get('/users/:id/details', authenticateAdmin, async (req, res) => {
+router.get('/users/:id/details', authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId
     if (!validateObjectId(req.params.id)) {
@@ -120,7 +96,7 @@ router.get('/users/:id/details', authenticateAdmin, async (req, res) => {
 });
 
 // Add balance to user
-router.post('/users/:id/add-balance', authenticateAdmin, async (req, res) => {
+router.post('/users/:id/add-balance', authenticateAdminSession, async (req, res) => {
   try {
     const { amount } = req.body;
     const delta = Number(amount);
@@ -164,7 +140,7 @@ router.post('/users/:id/add-balance', authenticateAdmin, async (req, res) => {
 });
 
 // Add/Update/Remove voucher/discount for user
-router.post('/users/:id/voucher', authenticateAdmin, async (req, res) => {
+router.post('/users/:id/voucher', authenticateAdminSession, async (req, res) => {
   try {
     const userId = req.params.id;
     const { discount } = req.body;
@@ -193,7 +169,7 @@ router.post('/users/:id/voucher', authenticateAdmin, async (req, res) => {
 });
 
 // Delete user and related data
-router.delete('/users/:id', authenticateAdmin, async (req, res) => {
+router.delete('/users/:id', authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId
     if (!validateObjectId(req.params.id)) {
@@ -215,7 +191,7 @@ router.delete('/users/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Get all orders with pagination, search and filter
-router.get('/orders', authenticateAdmin, async (req, res) => {
+router.get('/orders', authenticateAdminSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
@@ -287,7 +263,7 @@ router.get('/orders', authenticateAdmin, async (req, res) => {
 });
 
 // Update order status
-router.put('/orders/:id', authenticateAdmin, async (req, res) => {
+router.put('/orders/:id', authenticateAdminSession, async (req, res) => {
   try {
     const { status } = req.body;
     const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
@@ -299,7 +275,7 @@ router.put('/orders/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Delete completed order
-router.delete('/orders/:id', authenticateAdmin, async (req, res) => {
+router.delete('/orders/:id', authenticateAdminSession, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) {
@@ -318,7 +294,7 @@ router.delete('/orders/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Get statistics
-router.get('/stats', authenticateAdmin, async (req, res) => {
+router.get('/stats', authenticateAdminSession, async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalOrders = await Order.countDocuments();
@@ -337,7 +313,7 @@ router.get('/stats', authenticateAdmin, async (req, res) => {
 });
 
 // Get revenue statistics (detailed)
-router.get('/revenue-stats', authenticateAdmin, async (req, res) => {
+router.get('/revenue-stats', authenticateAdminSession, async (req, res) => {
   try {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -497,7 +473,7 @@ router.get('/revenue-stats', authenticateAdmin, async (req, res) => {
 });
 
 // Reset revenue statistics (set new baseline)
-router.post('/revenue-stats/reset', authenticateAdmin, async (req, res) => {
+router.post('/revenue-stats/reset', authenticateAdminSession, async (req, res) => {
   try {
     const settings = await Settings.getSettings();
     settings.revenueResetAt = new Date();
@@ -510,7 +486,7 @@ router.post('/revenue-stats/reset', authenticateAdmin, async (req, res) => {
 });
 
 // Update recharge promotion percent
-router.put('/settings/recharge-promotion', authenticateAdmin, async (req, res) => {
+router.put('/settings/recharge-promotion', authenticateAdminSession, async (req, res) => {
   try {
     const { promotionPercent } = req.body;
     const percent = parseFloat(promotionPercent);
@@ -534,7 +510,7 @@ router.put('/settings/recharge-promotion', authenticateAdmin, async (req, res) =
 });
 
 // Get announcement
-router.get('/announcement', authenticateAdmin, async (req, res) => {
+router.get('/announcement', authenticateAdminSession, async (req, res) => {
   try {
     let announcement = await Announcement.findOne().lean();
     if (!announcement) {
@@ -547,7 +523,7 @@ router.get('/announcement', authenticateAdmin, async (req, res) => {
 });
 
 // Update announcement
-router.put('/announcement', authenticateAdmin, async (req, res) => {
+router.put('/announcement', authenticateAdminSession, async (req, res) => {
   try {
     const { title, content } = req.body;
     const updated = await Announcement.findOneAndUpdate(
@@ -567,7 +543,7 @@ router.put('/announcement', authenticateAdmin, async (req, res) => {
 });
 
 // Pricing: CayThue (admin)
-router.get('/pricing/caythue', authenticateAdmin, async (req, res) => {
+router.get('/pricing/caythue', authenticateAdminSession, async (req, res) => {
   try {
     let doc = await Pricing.findOne({ key: 'caythue' }).lean();
     if (!doc) {
@@ -580,7 +556,7 @@ router.get('/pricing/caythue', authenticateAdmin, async (req, res) => {
   }
 });
 
-router.put('/pricing/caythue', authenticateAdmin, async (req, res) => {
+router.put('/pricing/caythue', authenticateAdminSession, async (req, res) => {
   try {
     const { data } = req.body;
     if (!Array.isArray(data)) {
@@ -598,7 +574,7 @@ router.put('/pricing/caythue', authenticateAdmin, async (req, res) => {
 });
 
 // Get all recharge requests with pagination and status filter
-router.get('/recharges', authenticateAdmin, async (req, res) => {
+router.get('/recharges', authenticateAdminSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
@@ -636,7 +612,7 @@ router.get('/recharges', authenticateAdmin, async (req, res) => {
 });
 
 // Approve recharge (add balance to user)
-router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
+router.put('/recharges/:id/approve', authenticateAdminSession, async (req, res) => {
   try {
     const recharge = await Recharge.findById(req.params.id);
     if (!recharge) {
@@ -791,7 +767,7 @@ router.put('/recharges/:id/approve', authenticateAdmin, async (req, res) => {
 });
 
 // Get bill image for a recharge
-router.get('/recharges/:id/bill', authenticateAdmin, async (req, res) => {
+router.get('/recharges/:id/bill', authenticateAdminSession, async (req, res) => {
   try {
     const recharge = await Recharge.findById(req.params.id).select('billImage');
     if (!recharge) {
@@ -804,7 +780,7 @@ router.get('/recharges/:id/bill', authenticateAdmin, async (req, res) => {
 });
 
 // Reject recharge
-router.put('/recharges/:id/reject', authenticateAdmin, async (req, res) => {
+router.put('/recharges/:id/reject', authenticateAdminSession, async (req, res) => {
   try {
     const { rejectionReason } = req.body;
     const recharge = await Recharge.findById(req.params.id);
@@ -832,7 +808,7 @@ router.put('/recharges/:id/reject', authenticateAdmin, async (req, res) => {
 });
 
 // Delete completed recharge
-router.delete('/recharges/:id', authenticateAdmin, async (req, res) => {
+router.delete('/recharges/:id', authenticateAdminSession, async (req, res) => {
   try {
     const recharge = await Recharge.findById(req.params.id);
     if (!recharge) {
@@ -858,7 +834,7 @@ router.delete('/recharges/:id', authenticateAdmin, async (req, res) => {
 // ===== Voucher management =====
 
 // Get vouchers with pagination and optional status filter
-router.get('/vouchers', authenticateAdmin, async (req, res) => {
+router.get('/vouchers', authenticateAdminSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
@@ -898,7 +874,7 @@ router.get('/vouchers', authenticateAdmin, async (req, res) => {
 });
 
 // Create new voucher
-router.post('/vouchers', authenticateAdmin, async (req, res) => {
+router.post('/vouchers', authenticateAdminSession, async (req, res) => {
   try {
     const { code, discount, expiresAt, minOrderAmount } = req.body;
 
@@ -936,7 +912,7 @@ router.post('/vouchers', authenticateAdmin, async (req, res) => {
 });
 
 // Delete voucher
-router.delete('/vouchers/:id', authenticateAdmin, async (req, res) => {
+router.delete('/vouchers/:id', authenticateAdminSession, async (req, res) => {
   try {
     const voucher = await Voucher.findByIdAndDelete(req.params.id);
     if (!voucher) {
@@ -980,7 +956,7 @@ const generateAccountCode = async (game) => {
 };
 
 // Get accounts with pagination, search, and filters
-router.get('/accounts', authenticateAdmin, async (req, res) => {
+router.get('/accounts', authenticateAdminSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
@@ -1031,7 +1007,7 @@ router.get('/accounts', authenticateAdmin, async (req, res) => {
 });
 
 // Get all games (for dropdown)
-router.get('/accounts/games', authenticateAdmin, async (req, res) => {
+router.get('/accounts/games', authenticateAdminSession, async (req, res) => {
   try {
     // Get games from Game model (managed by admin)
     const gamesFromDB = await Game.find().sort({ name: 1 });
@@ -1050,7 +1026,7 @@ router.get('/accounts/games', authenticateAdmin, async (req, res) => {
 });
 
 // Create new account
-router.post('/accounts', authenticateAdmin, async (req, res) => {
+router.post('/accounts', authenticateAdminSession, async (req, res) => {
   try {
     const { game, info, image, username, password, originalPrice, discountedPrice } = req.body;
 
@@ -1086,7 +1062,7 @@ router.post('/accounts', authenticateAdmin, async (req, res) => {
 });
 
 // Update account
-router.put('/accounts/:id', authenticateAdmin, async (req, res) => {
+router.put('/accounts/:id', authenticateAdminSession, async (req, res) => {
   try {
     const { game, info, image, username, password, originalPrice, discountedPrice, status, buyerId } = req.body;
     
@@ -1116,7 +1092,7 @@ router.put('/accounts/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Delete account - allow deletion even if sold (stats are based on orders, not account records)
-router.delete('/accounts/:id', authenticateAdmin, async (req, res) => {
+router.delete('/accounts/:id', authenticateAdminSession, async (req, res) => {
   try {
     const account = await Account.findById(req.params.id);
     if (!account) {
@@ -1133,7 +1109,7 @@ router.delete('/accounts/:id', authenticateAdmin, async (req, res) => {
 
 // Game management routes
 // Get all games
-router.get('/games', authenticateAdmin, async (req, res) => {
+router.get('/games', authenticateAdminSession, async (req, res) => {
   try {
     const games = await Game.find().sort({ name: 1 });
     res.json(games);
@@ -1143,7 +1119,7 @@ router.get('/games', authenticateAdmin, async (req, res) => {
 });
 
 // Create new game
-router.post('/games', authenticateAdmin, async (req, res) => {
+router.post('/games', authenticateAdminSession, async (req, res) => {
   try {
     const { name, image } = req.body;
     
@@ -1166,7 +1142,7 @@ router.post('/games', authenticateAdmin, async (req, res) => {
 });
 
 // Update game
-router.put('/games/:id', authenticateAdmin, async (req, res) => {
+router.put('/games/:id', authenticateAdminSession, async (req, res) => {
   try {
     const { name, image } = req.body;
     
@@ -1189,7 +1165,7 @@ router.put('/games/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Delete game
-router.delete('/games/:id', authenticateAdmin, async (req, res) => {
+router.delete('/games/:id', authenticateAdminSession, async (req, res) => {
   try {
     const game = await Game.findByIdAndDelete(req.params.id);
     if (!game) {
@@ -1202,7 +1178,7 @@ router.delete('/games/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Reset top monthly recharge stats
-router.post('/top-month/reset', authenticateAdmin, async (req, res) => {
+router.post('/top-month/reset', authenticateAdminSession, async (req, res) => {
   try {
     const MonthlyRechargeStats = require('../models/MonthlyRechargeStats');
     const now = new Date();

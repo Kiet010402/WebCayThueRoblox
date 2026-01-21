@@ -188,28 +188,26 @@ function Admin() {
   const [rechargePromotionInput, setRechargePromotionInput] = useState('');
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    
-    if (!token || !user || user.role !== 'admin') {
+    // Check if user is admin by calling API
+    try {
+      const userRes = await api.get('/api/users/me');
+      if (!userRes.data || userRes.data.role !== 'admin') {
       navigate('/login');
       return;
+      }
+    } catch (error) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        navigate('/login');
+        return;
+      }
     }
 
     try {
       const [usersRes, ordersRes, rechargesRes, statsRes, newsRes] = await Promise.all([
-        api.get(`/api/admin/users?page=${usersPage}&limit=7&search=${encodeURIComponent(usersSearch)}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        api.get(`/api/admin/orders?page=${ordersPage}&limit=7&search=${encodeURIComponent(ordersSearch)}&status=${encodeURIComponent(ordersStatusFilter)}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        api.get(`/api/admin/recharges?page=${rechargesPage}&limit=7&status=${encodeURIComponent(rechargesStatusFilter)}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        api.get('/api/admin/stats', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
+        api.get(`/api/admin/users?page=${usersPage}&limit=7&search=${encodeURIComponent(usersSearch)}`),
+        api.get(`/api/admin/orders?page=${ordersPage}&limit=7&search=${encodeURIComponent(ordersSearch)}&status=${encodeURIComponent(ordersStatusFilter)}`),
+        api.get(`/api/admin/recharges?page=${rechargesPage}&limit=7&status=${encodeURIComponent(rechargesStatusFilter)}`),
+        api.get('/api/admin/stats'),
         api.get('/api/news')
       ]);
       
@@ -226,12 +224,8 @@ function Admin() {
       
       // Count pending orders and recharges (need to fetch all for accurate count)
       const [allOrdersRes, allRechargesRes] = await Promise.all([
-        api.get('/api/admin/orders?page=1&limit=10000', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        api.get('/api/admin/recharges?page=1&limit=10000', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        api.get('/api/admin/orders?page=1&limit=10000'),
+        api.get('/api/admin/recharges?page=1&limit=10000')
       ]);
       const pendingOrders = Array.isArray(allOrdersRes.data.orders) ? allOrdersRes.data.orders.filter(order => order.status === 'Đang xử lí') : [];
       const pendingRecharges = Array.isArray(allRechargesRes.data.recharges) ? allRechargesRes.data.recharges.filter(recharge => recharge.status === 'Đang xử lí') : [];
@@ -263,44 +257,32 @@ function Admin() {
   // Fetch vouchers only when voucher tab is active
   useEffect(() => {
     const fetchVouchers = async () => {
-      const token = localStorage.getItem('token');
-      const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
-      if (!token || !adminUser || adminUser.role !== 'admin') return;
-
       try {
         const statusParam = voucherStatusFilter ? `&status=${encodeURIComponent(voucherStatusFilter)}` : '';
         const res = await api.get(
-          `/api/admin/vouchers?page=${vouchersPage}&limit=7${statusParam}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          `/api/admin/vouchers?page=${vouchersPage}&limit=7${statusParam}`
         );
         setVouchers(Array.isArray(res.data.vouchers) ? res.data.vouchers : []);
         setVouchersTotalPages(res.data.totalPages || 1);
       } catch (error) {
         console.error('Error fetching vouchers:', error);
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          navigate('/login');
+        }
       }
     };
 
     if (activeTab === 'vouchers') {
       fetchVouchers();
     }
-  }, [activeTab, vouchersPage, voucherStatusFilter]);
+  }, [activeTab, vouchersPage, voucherStatusFilter, navigate]);
 
   // Fetch games function (defined outside useEffect so it can be used by other handlers)
   const fetchGames = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
-    if (!token || !adminUser || adminUser.role !== 'admin') return;
-
     try {
       const [gamesRes, accountGamesRes] = await Promise.all([
-        api.get('/api/admin/games', {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => ({ data: [] })), // Fallback if endpoint doesn't exist yet
-        api.get('/api/admin/accounts/games', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        api.get('/api/admin/games').catch(() => ({ data: [] })), // Fallback if endpoint doesn't exist yet
+        api.get('/api/admin/accounts/games')
       ]);
       if (Array.isArray(gamesRes.data)) {
         setGames(gamesRes.data);
@@ -316,24 +298,20 @@ function Admin() {
   // Fetch accounts only when accounts tab is active
   useEffect(() => {
     const fetchAccounts = async () => {
-      const token = localStorage.getItem('token');
-      const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
-      if (!token || !adminUser || adminUser.role !== 'admin') return;
-
       try {
         const searchParam = accountsSearch ? `&search=${encodeURIComponent(accountsSearch)}` : '';
         const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
         const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
         const res = await api.get(
-          `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`
         );
         setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
         setAccountsTotalPages(res.data.totalPages || 1);
       } catch (error) {
         console.error('Error fetching accounts:', error);
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          navigate('/login');
+        }
       }
     };
 
@@ -349,23 +327,15 @@ function Admin() {
   // Fetch blind bags and accounts
   useEffect(() => {
     const fetchBlindBags = async () => {
-      const token = localStorage.getItem('token');
-      const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
-      if (!token || !adminUser || adminUser.role !== 'admin') return;
-
       try {
-        const res = await api.get('/api/blindbags', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get('/api/blindbags');
         const loadedBlindBags = Array.isArray(res.data) ? res.data : [];
         
         // Fetch stats for each blind bag (from /stats route to get accurate counts)
         const blindBagsWithStats = await Promise.all(
           loadedBlindBags.map(async (bag) => {
             try {
-              const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
+              const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`);
               return {
                 ...bag,
                 availableAccounts: statsRes.data.availableAccounts || 0,
@@ -384,14 +354,13 @@ function Admin() {
         setBlindBags(blindBagsWithStats);
       } catch (error) {
         console.error('Error fetching blind bags:', error);
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          navigate('/login');
+        }
       }
     };
 
     const fetchBlindBagAccounts = async () => {
-      const token = localStorage.getItem('token');
-      const adminUser = JSON.parse(localStorage.getItem('user') || 'null');
-      if (!token || !adminUser || adminUser.role !== 'admin') return;
-
       try {
         const searchParam = blindBagAccountsSearch ? `&search=${encodeURIComponent(blindBagAccountsSearch)}` : '';
         const blindBagParam = blindBagAccountsBlindBagFilter ? `&blindBagId=${encodeURIComponent(blindBagAccountsBlindBagFilter)}` : '';
@@ -399,15 +368,15 @@ function Admin() {
         const statusParam = blindBagAccountsStatusFilter ? `&status=${encodeURIComponent(blindBagAccountsStatusFilter)}` : '';
         
         const res = await api.get(
-          `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
+          `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`
         );
         setBlindBagAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
         setBlindBagAccountsTotalPages(res.data.totalPages || 1);
       } catch (error) {
         console.error('Error fetching blind bag accounts:', error);
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          navigate('/login');
+        }
       }
     };
 
@@ -426,12 +395,10 @@ function Admin() {
     }
 
     const delta = balanceMode === 'add' ? value : -value;
-    const token = localStorage.getItem('token');
     try {
       await api.post(
         `/api/admin/users/${selectedUser._id}/add-balance`,
-        { amount: delta },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { amount: delta }
       );
       
       alert('Cập nhật số dư thành công!');
@@ -456,7 +423,6 @@ function Admin() {
       return;
     }
 
-    const token = localStorage.getItem('token');
     try {
       await api.post(
         '/api/admin/vouchers',
@@ -465,9 +431,6 @@ function Admin() {
           discount: discountValue,
           expiresAt: newVoucherExpiry,
           minOrderAmount: Number(newVoucherMinAmount) || 0,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
         }
       );
       alert('Tạo voucher thành công');
@@ -480,10 +443,7 @@ function Admin() {
       if (activeTab === 'vouchers') {
         const statusParam = voucherStatusFilter ? `&status=${encodeURIComponent(voucherStatusFilter)}` : '';
         const res = await api.get(
-          `/api/admin/vouchers?page=1&limit=7${statusParam}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          `/api/admin/vouchers?page=1&limit=7${statusParam}`
         );
         setVouchers(Array.isArray(res.data.vouchers) ? res.data.vouchers : []);
         setVouchersTotalPages(res.data.totalPages || 1);
@@ -497,19 +457,13 @@ function Admin() {
     if (!window.confirm(`Bạn chắc chắn muốn xóa voucher "${voucherCode}"? Hành động này không thể hoàn tác.`)) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
-      await api.delete(`/api/admin/vouchers/${voucherId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/api/admin/vouchers/${voucherId}`);
       alert('Đã xóa voucher');
       // Refetch vouchers
       const statusParam = voucherStatusFilter ? `&status=${encodeURIComponent(voucherStatusFilter)}` : '';
       const res = await api.get(
-        `/api/admin/vouchers?page=${vouchersPage}&limit=7${statusParam}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        `/api/admin/vouchers?page=${vouchersPage}&limit=7${statusParam}`
       );
       setVouchers(Array.isArray(res.data.vouchers) ? res.data.vouchers : []);
       setVouchersTotalPages(res.data.totalPages || 1);
@@ -531,7 +485,6 @@ function Admin() {
       return;
     }
 
-    const token = localStorage.getItem('token');
     try {
       await api.post(
         '/api/admin/accounts',
@@ -543,9 +496,6 @@ function Admin() {
           password: newAccountPassword,
           originalPrice: originalPrice,
           discountedPrice: discountedPrice,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
         }
       );
       alert('Đăng account thành công!');
@@ -562,10 +512,7 @@ function Admin() {
       const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
       const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
       const res = await api.get(
-        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`
       );
       setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
       setAccountsTotalPages(res.data.totalPages || 1);
@@ -589,7 +536,6 @@ function Admin() {
 
   const handleUpdateAccount = async () => {
     if (!selectedAccount) return;
-    const token = localStorage.getItem('token');
     try {
       await api.put(`/api/admin/accounts/${selectedAccount._id}`, {
         game: editAccountGame,
@@ -600,8 +546,6 @@ function Admin() {
         originalPrice: editAccountOriginalPrice,
         discountedPrice: editAccountDiscountedPrice,
         status: editAccountStatus
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Cập nhật account thành công!');
       setShowAccountDetailModal(false);
@@ -610,10 +554,7 @@ function Admin() {
       const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
       const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
       const res = await api.get(
-        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`
       );
       setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
       setAccountsTotalPages(res.data.totalPages || 1);
@@ -627,11 +568,8 @@ function Admin() {
     if (!window.confirm(`Bạn chắc chắn muốn xóa account "${selectedAccount.code}"? Hành động này không thể hoàn tác.`)) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
-      await api.delete(`/api/admin/accounts/${selectedAccount._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/api/admin/accounts/${selectedAccount._id}`);
       alert('Đã xóa account');
       setShowAccountDetailModal(false);
       // Refetch accounts
@@ -639,10 +577,7 @@ function Admin() {
       const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
       const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
       const res = await api.get(
-        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`
       );
       setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
       setAccountsTotalPages(res.data.totalPages || 1);
@@ -656,21 +591,15 @@ function Admin() {
     if (!window.confirm(`Bạn chắc chắn muốn xóa account "${accountCode}"? Hành động này không thể hoàn tác.`)) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
-      await api.delete(`/api/admin/accounts/${accountId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/api/admin/accounts/${accountId}`);
       alert('Đã xóa account');
       // Refetch accounts
       const searchParam = accountsSearch ? `&search=${encodeURIComponent(accountsSearch)}` : '';
       const gameParam = accountsGameFilter ? `&game=${encodeURIComponent(accountsGameFilter)}` : '';
       const statusParam = accountsStatusFilter ? `&status=${encodeURIComponent(accountsStatusFilter)}` : '';
       const res = await api.get(
-        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        `/api/admin/accounts?page=${accountsPage}&limit=7${searchParam}${gameParam}${statusParam}`
       );
       setAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
       setAccountsTotalPages(res.data.totalPages || 1);
@@ -685,13 +614,10 @@ function Admin() {
       alert('Vui lòng nhập tên game');
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.post('/api/admin/games', {
         name: newGameName.trim(),
         image: newGameImage.trim()
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Thêm game thành công!');
       setNewGameName('');
@@ -713,13 +639,11 @@ function Admin() {
       alert('Vui lòng nhập tên game');
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.put(`/api/admin/games/${editingGame._id}`, {
         name: editGameName.trim(),
         image: editGameImage.trim()
       }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Cập nhật game thành công!');
       setEditingGame(null);
@@ -735,10 +659,8 @@ function Admin() {
     if (!window.confirm('Bạn chắc chắn muốn xóa game này?')) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.delete(`/api/admin/games/${gameId}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Xóa game thành công!');
       fetchGames();
@@ -751,10 +673,8 @@ function Admin() {
     if (!window.confirm('Bạn chắc chắn muốn xóa user này và dữ liệu liên quan?')) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.delete(`/api/admin/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Đã xóa user');
       fetchData();
@@ -764,11 +684,9 @@ function Admin() {
   };
 
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
-    const token = localStorage.getItem('token');
     try {
       await api.put(`/api/admin/orders/${orderId}`,
         { status: newStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
       );
       fetchData();
     } catch (error) {
@@ -780,10 +698,8 @@ function Admin() {
     if (!window.confirm('Bạn chắc chắn muốn xóa đơn hàng này? Hành động này không thể hoàn tác.')) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.delete(`/api/admin/orders/${orderId}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Đã xóa đơn hàng thành công');
       fetchData();
@@ -796,10 +712,8 @@ function Admin() {
     if (!window.confirm('Bạn chắc chắn muốn xóa yêu cầu nạp tiền này? Hành động này không thể hoàn tác.')) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.delete(`/api/admin/recharges/${rechargeId}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Đã xóa yêu cầu nạp tiền thành công');
       // Update local state instead of refetching all data
@@ -825,7 +739,6 @@ function Admin() {
   };
 
   const approveRechargeDirectly = async (rechargeId, cardFeePercent = null) => {
-    const token = localStorage.getItem('token');
     try {
       const requestData = {};
       if (cardFeePercent !== null) {
@@ -834,7 +747,6 @@ function Admin() {
       
       const res = await api.put(`/api/admin/recharges/${rechargeId}/approve`,
         requestData,
-        { headers: { Authorization: `Bearer ${token}` } }
       );
       
       alert('Duyệt nạp tiền thành công!');
@@ -885,14 +797,14 @@ function Admin() {
           
           // Decrease pending count if it was pending
           if (wasPending) {
-            setPendingRechargesCount(count => Math.max(0, count - 1));
-          }
+          setPendingRechargesCount(count => Math.max(0, count - 1));
+        }
           
           return next;
         });
       } else {
         // Fallback: reload if server didn't send updated recharge
-        fetchData();
+      fetchData();
       }
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
@@ -906,7 +818,6 @@ function Admin() {
   };
 
   const handleUpdateRechargePromotion = async () => {
-    const token = localStorage.getItem('token');
     const percent = parseFloat(rechargePromotionInput);
     
     if (isNaN(percent) || percent < 0 || percent > 100) {
@@ -918,7 +829,6 @@ function Admin() {
       await api.put('/api/admin/settings/recharge-promotion', {
         promotionPercent: percent
       }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
 
       setRechargePromotionPercent(percent);
@@ -934,11 +844,8 @@ function Admin() {
       return;
     }
 
-    const token = localStorage.getItem('token');
     try {
-      await api.post('/api/admin/top-month/reset', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post('/api/admin/top-month/reset', {});
 
       alert('Reset top nạp tháng thành công!');
     } catch (error) {
@@ -952,11 +859,9 @@ function Admin() {
       alert('Vui lòng nhập lý do từ chối');
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       const res = await api.put(`/api/admin/recharges/${selectedRechargeId}/reject`,
         { rejectionReason: rejectionReason.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
       );
       alert('Từ chối nạp tiền thành công!');
       setShowRejectModal(false);
@@ -1019,10 +924,8 @@ function Admin() {
     setSelectedBill(null);
     setLoadingBill(true);
 
-    const token = localStorage.getItem('token');
     try {
       const response = await api.get(`/api/admin/recharges/${rechargeId}/bill`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       const billImage = response.data.billImage;
       // Cache the image
@@ -1041,11 +944,9 @@ function Admin() {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.post('/api/news', 
         { title: newsTitle, content: newsContent, category: newsCategory, url: newsUrl },
-        { headers: { Authorization: `Bearer ${token}` } }
       );
       alert('Tạo tin tức thành công!');
       setShowNewsModal(false);
@@ -1063,10 +964,8 @@ function Admin() {
     if (!window.confirm('Bạn có chắc chắn muốn xóa tin tức này?')) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.delete(`/api/news/${newsId}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Xóa tin tức thành công!');
       fetchData();
@@ -1081,7 +980,6 @@ function Admin() {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.post('/api/blindbags', {
         game: newBlindBagGame,
@@ -1090,8 +988,6 @@ function Admin() {
         info: newBlindBagInfo,
         originalPrice: parseFloat(newBlindBagOriginalPrice),
         discountedPrice: parseFloat(newBlindBagDiscountedPrice)
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Tạo túi mù thành công!');
       setNewBlindBagGame('');
@@ -1101,9 +997,7 @@ function Admin() {
       setNewBlindBagOriginalPrice('');
       setNewBlindBagDiscountedPrice('');
       // Refresh blind bags
-      const res = await api.get('/api/blindbags', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/api/blindbags');
       setBlindBags(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       alert(error.response?.data?.message || 'Có lỗi xảy ra');
@@ -1122,7 +1016,6 @@ function Admin() {
 
   const handleUpdateBlindBag = async () => {
     if (!editingBlindBag) return;
-    const token = localStorage.getItem('token');
     try {
       await api.put(`/api/blindbags/${editingBlindBag._id}`, {
         game: editBlindBagGame,
@@ -1131,21 +1024,17 @@ function Admin() {
         info: editBlindBagInfo,
         originalPrice: parseFloat(editBlindBagOriginalPrice),
         discountedPrice: parseFloat(editBlindBagDiscountedPrice)
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Cập nhật túi mù thành công!');
       setEditingBlindBag(null);
       // Refresh blind bags with stats
       const res = await api.get('/api/blindbags', {
-        headers: { Authorization: `Bearer ${token}` }
       });
       const loadedBlindBags = Array.isArray(res.data) ? res.data : [];
       const blindBagsWithStats = await Promise.all(
         loadedBlindBags.map(async (bag) => {
           try {
             const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`, {
-              headers: { Authorization: `Bearer ${token}` }
             });
             return {
               ...bag,
@@ -1171,22 +1060,18 @@ function Admin() {
     if (!window.confirm('Bạn có chắc chắn muốn xóa túi mù này?')) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.delete(`/api/blindbags/${blindBagId}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Xóa túi mù thành công!');
       // Refresh blind bags with stats
       const res = await api.get('/api/blindbags', {
-        headers: { Authorization: `Bearer ${token}` }
       });
       const loadedBlindBags = Array.isArray(res.data) ? res.data : [];
       const blindBagsWithStats = await Promise.all(
         loadedBlindBags.map(async (bag) => {
           try {
             const statsRes = await api.get(`/api/blindbags/${bag._id}/stats`, {
-              headers: { Authorization: `Bearer ${token}` }
             });
             return {
               ...bag,
@@ -1213,14 +1098,12 @@ function Admin() {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.post(`/api/blindbags/${selectedBlindBagForAccount}/accounts`, {
         username: newBlindBagAccountUsername,
         password: newBlindBagAccountPassword,
         accountType: newBlindBagAccountType
       }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Đăng acc lên túi mù thành công!');
       setNewBlindBagAccountUsername('');
@@ -1234,7 +1117,6 @@ function Admin() {
       const res = await api.get(
         `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`,
         {
-          headers: { Authorization: `Bearer ${token}` }
         }
       );
       setBlindBagAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
@@ -1245,10 +1127,8 @@ function Admin() {
   };
 
   const handleViewBlindBagAccountDetail = async (accountId) => {
-    const token = localStorage.getItem('token');
     try {
       const res = await api.get(`/api/blindbags/accounts/${accountId}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setSelectedBlindBagAccount(res.data);
       setEditBlindBagAccountUsername(res.data.username || '');
@@ -1262,14 +1142,12 @@ function Admin() {
 
   const handleUpdateBlindBagAccount = async () => {
     if (!selectedBlindBagAccount) return;
-    const token = localStorage.getItem('token');
     try {
       await api.put(`/api/blindbags/accounts/${selectedBlindBagAccount._id}`, {
         username: editBlindBagAccountUsername,
         password: editBlindBagAccountPassword,
         accountType: editBlindBagAccountType
       }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Cập nhật account thành công!');
       // Refresh accounts list
@@ -1280,14 +1158,12 @@ function Admin() {
       const res = await api.get(
         `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`,
         {
-          headers: { Authorization: `Bearer ${token}` }
         }
       );
       setBlindBagAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
       setBlindBagAccountsTotalPages(res.data.totalPages || 1);
       // Refresh detail
       const detailRes = await api.get(`/api/blindbags/accounts/${selectedBlindBagAccount._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setSelectedBlindBagAccount(detailRes.data);
     } catch (error) {
@@ -1300,10 +1176,8 @@ function Admin() {
     if (!window.confirm('Bạn có chắc chắn muốn xóa account này? (Lịch sử mua acc vẫn được giữ lại)')) {
       return;
     }
-    const token = localStorage.getItem('token');
     try {
       await api.delete(`/api/blindbags/accounts/${selectedBlindBagAccount._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Xóa account thành công!');
       setShowBlindBagAccountDetailModal(false);
@@ -1316,7 +1190,6 @@ function Admin() {
       const res = await api.get(
         `/api/blindbags/admin/accounts/all?page=${blindBagAccountsPage}&limit=7${searchParam}${blindBagParam}${typeParam}${statusParam}`,
         {
-          headers: { Authorization: `Bearer ${token}` }
         }
       );
       setBlindBagAccounts(Array.isArray(res.data.accounts) ? res.data.accounts : []);
@@ -1327,10 +1200,8 @@ function Admin() {
   };
 
   const handleViewUserDetails = async (userId) => {
-    const token = localStorage.getItem('token');
     try {
       const response = await api.get(`/api/admin/users/${userId}/details`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setUserDetails(response.data);
       // Reset display limits and sections when opening modal
@@ -1357,12 +1228,10 @@ function Admin() {
       return;
     }
 
-    const token = localStorage.getItem('token');
     try {
       await api.post(`/api/admin/users/${selectedUserForVoucher._id}/voucher`, {
         discount
       }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Cập nhật voucher thành công!');
       setShowVoucherModal(false);

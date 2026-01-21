@@ -1,33 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
 const mongoose = require('mongoose');
-const { getJWTSecret } = require('../utils/auth');
-
-// Middleware to verify admin
-const authenticateAdmin = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, getJWTSecret());
-    const user = await User.findById(decoded.userId);
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ message: 'Không có quyền truy cập' });
-    }
-    req.userId = decoded.userId;
-    req.admin = user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: 'Token không hợp lệ' });
-  }
-};
+const { authenticateAdminSession } = require('../middleware/sessionAuth');
 
 // Get all products
 router.get('/', async (req, res) => {
@@ -58,7 +33,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create product (admin only)
-router.post('/', authenticateAdmin, async (req, res) => {
+router.post('/', authenticateAdminSession, async (req, res) => {
   try {
     const { name, description, price, image, category, inStock, quantity } = req.body;
 
@@ -92,7 +67,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
 });
 
 // Update product (admin only)
-router.put('/:id', authenticateAdmin, async (req, res) => {
+router.put('/:id', authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId to prevent NoSQL injection
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -145,7 +120,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Delete product (admin only)
-router.delete('/:id', authenticateAdmin, async (req, res) => {
+router.delete('/:id', authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId to prevent NoSQL injection
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {

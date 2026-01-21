@@ -1,50 +1,39 @@
 .banner {
-  background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 50%, #bbdefb 100%);
-  background-size: 200% 200%;
-  animation: gradientWave 4s ease infinite;
-  color: #1976D2;
-  padding: 3rem 2rem;
+  background-image: url('https://media.discordapp.net/attachments/1463495004478640300/1463495024606969992/5484fa84-01b8-48c1-9c9e-6e93c45553d9.png?ex=69720974&is=6970b7f4&hm=d9f8c9dbb8a1fdc256186e6558b362d890b10b7a4f6026f89d003c278c556115&=&format=webp&quality=lossless&width=1872&height=702');
+  background-position: center;
+  background-repeat: no-repeat;
+  /* Tiny zoom to hide 1px seams/lines from subpixel rounding or image edge */
+  background-size: 101% auto;
+  color: #ffffff;
+  padding: 0;
   border-radius: 12px;
   margin-bottom: 3rem;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(25, 118, 210, 0.2);
-}
-
-@keyframes gradientWave {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  min-height: 420px;
 }
 
 .banner-content {
   position: relative;
   z-index: 2;
   text-align: center;
-  max-width: 800px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
 .banner-content h1 {
   font-size: 2.5rem;
   margin: 0 0 1rem 0;
-  background: linear-gradient(45deg, #2196F3, #1976D2, #0d47a1);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .subtitle {
   font-size: 1.2rem;
-  color: #0d47a1;
+  color: #e3f2fd;
   margin-bottom: 2rem;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .banner-features {
@@ -60,54 +49,14 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 1rem;
-  color: #1976D2;
+  color: #ffffff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .feature span {
-  color: #2196F3;
+  color: #ffe082;
   font-weight: bold;
   font-size: 1.2rem;
-}
-
-.banner-buttons {
-  display: flex;
-  gap: 1.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.btn {
-  padding: 1rem 2.5rem;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  font-weight: bold;
-  text-decoration: none;
-  transition: all 0.3s ease;
-  display: inline-block;
-  cursor: pointer;
-  border: none;
-}
-
-.btn-primary {
-  background: linear-gradient(45deg, #2196F3, #1976D2);
-  color: white;
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
-}
-
-.btn-primary:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(33, 150, 243, 0.5);
-}
-
-.btn-secondary {
-  background: linear-gradient(45deg, #64B5F6, #42A5F5);
-  color: white;
-  box-shadow: 0 4px 12px rgba(100, 181, 246, 0.3);
-}
-
-.btn-secondary:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(100, 181, 246, 0.5);
 }
 
 .banner-decoration {
@@ -158,6 +107,7 @@
   height: 200px;
   top: -50px;
   right: -50px;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .shape-2 {
@@ -165,6 +115,7 @@
   height: 150px;
   bottom: -30px;
   left: 10%;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .shape-3 {
@@ -172,9 +123,13 @@
   height: 100px;
   top: 50%;
   right: 5%;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 @media (max-width: 768px) {
+  .banner {
+    min-height: 260px;
+  }
   .banner-content h1 {
     font-size: 1.8rem;
   }

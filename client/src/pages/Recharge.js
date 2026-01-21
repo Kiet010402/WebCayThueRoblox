@@ -61,13 +61,15 @@ function Recharge() {
   };
 
   const handleRecharge = async () => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    
-    if (!user || !token) {
-      alert('Vui lòng đăng nhập để nạp tiền');
-      navigate('/login');
-      return;
+    // Check if user is logged in by trying to fetch user info
+    try {
+      await api.get('/api/users/me');
+    } catch (error) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        alert('Vui lòng đăng nhập để nạp tiền');
+        navigate('/login');
+        return;
+      }
     }
 
     const amount = parseInt(customAmount);
@@ -103,7 +105,6 @@ function Recharge() {
             { image: billImage },
             {
               headers: {
-                Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json'
               }
             }
@@ -133,7 +134,6 @@ function Recharge() {
 
       await api.post('/api/recharge', requestData, {
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });

@@ -1,30 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const Recharge = require('../models/Recharge');
 const User = require('../models/User');
-const { getJWTSecret } = require('../utils/auth');
-
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  jwt.verify(token, getJWTSecret(), (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: 'Token không hợp lệ' });
-    }
-    req.userId = decoded.userId;
-    next();
-  });
-};
+const { authenticateSession } = require('../middleware/sessionAuth');
 
 // Create recharge request
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateSession, async (req, res) => {
   try {
     const { amount, paymentMethod, billImage, cardType, cardCode, cardSerial } = req.body;
 
@@ -77,18 +58,34 @@ router.post('/', authenticateToken, async (req, res) => {
       delete rechargeData.cardSerial;
     }
 
+    // Verify user exists before creating recharge
+    if (!req.userId) {
+      console.error('Recharge error: req.userId is not set');
+      return res.status(401).json({ message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      console.error('Recharge error: User not found', { userId: req.userId });
+      return res.status(404).json({ message: 'Không tìm thấy thông tin user' });
+    }
+
     const recharge = new Recharge(rechargeData);
 
     const newRecharge = await recharge.save();
     res.status(201).json(newRecharge);
   } catch (error) {
     console.error('Error creating recharge:', error);
+    // Check if it's a validation error related to userId
+    if (error.message && (error.message.includes('userId') || error.message.includes('User'))) {
+      return res.status(404).json({ message: 'Không tìm thấy thông tin user' });
+    }
     res.status(400).json({ message: error.message || 'Có lỗi xảy ra khi tạo yêu cầu nạp tiền' });
   }
 });
 
 // Get user's recharge requests with pagination
-router.get('/my-recharges', authenticateToken, async (req, res) => {
+router.get('/my-recharges', authenticateSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;

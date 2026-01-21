@@ -1,29 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const { getJWTSecret } = require('../utils/auth');
 const { uploadImage } = require('../utils/cloudinary');
-
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  jwt.verify(token, getJWTSecret(), (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: 'Token không hợp lệ' });
-    }
-    req.userId = decoded.userId;
-    next();
-  });
-};
+const { authenticateSession } = require('../middleware/sessionAuth');
 
 // Upload image to Cloudinary
-router.post('/image', authenticateToken, async (req, res) => {
+router.post('/image', authenticateSession, async (req, res) => {
   try {
     const { image } = req.body;
 

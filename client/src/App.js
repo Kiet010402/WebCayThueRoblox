@@ -18,30 +18,29 @@ import NickRoblox from './pages/NickRoblox';
 import Chat from './components/Chat';
 import api from './api/axios';
 
-function AppContent({ setUser }) {
+function AppContent({ setUser, user }) {
   const location = useLocation();
 
-  // Fetch balance from API when route changes (debounced to avoid too many requests)
+    // Fetch balance from API when route changes (debounced to avoid too many requests)
   useEffect(() => {
     const fetchUserBalance = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!user) return; // Only fetch if user is logged in
 
       try {
-        const response = await api.get('/api/users/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const userData = localStorage.getItem('user');
-        if (userData) {
-          const updatedUser = { ...JSON.parse(userData), balance: response.data.balance };
-          localStorage.setItem('user', JSON.stringify(updatedUser));
-          setUser(updatedUser);
-        }
+        const response = await api.get('/api/users/me');
+        const updatedUser = {
+          id: response.data.id,
+          username: response.data.username,
+          balance: response.data.balance || 0,
+          role: response.data.role || 'user'
+        };
+        // Don't store user in localStorage for security
+        setUser(updatedUser);
       } catch (error) {
         // If token is invalid, clear user
         if (error.response?.status === 401 || error.response?.status === 403) {
-          localStorage.removeItem('token');
           localStorage.removeItem('user');
+          localStorage.removeItem('token');
           setUser(null);
         }
       }
@@ -53,7 +52,7 @@ function AppContent({ setUser }) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [location.pathname, setUser]);
+  }, [location.pathname, setUser, user]);
 
   return null;
 }
@@ -62,86 +61,112 @@ function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    if (token && userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      
-      // Immediately fetch fresh balance from API
-      api.get('/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(response => {
-        const updatedUser = { ...parsedUser, balance: response.data.balance };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        setUser(updatedUser);
-      })
-      .catch(error => {
-        // If token is invalid, clear user
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
-        }
-      });
+    // Check if user was logged out (don't auto-fetch if logged out)
+    const wasLoggedOut = sessionStorage.getItem('loggedOut') === 'true';
+    if (wasLoggedOut) {
+      sessionStorage.removeItem('loggedOut');
+      setUser(null);
+      return;
     }
+
+    // Fetch fresh user info from API (token is in httpOnly cookie)
+    api.get('/api/users/me')
+    .then(response => {
+      const updatedUser = {
+        id: response.data.id,
+        username: response.data.username,
+        balance: response.data.balance || 0,
+        role: response.data.role || 'user'
+      };
+      // Don't store user in localStorage for security
+      setUser(updatedUser);
+    })
+    .catch(error => {
+      // If token is invalid, clear user
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        setUser(null);
+      }
+    });
+    
+    // Listen for logout event
+    const handleLogout = () => {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      sessionStorage.setItem('loggedOut', 'true');
+      setUser(null);
+    };
+    window.addEventListener('userLoggedOut', handleLogout);
 
     // Listen for balance updates
     const handleBalanceUpdate = () => {
-      const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('user');
-      if (token && userData) {
-        // Also fetch fresh balance when event is triggered
-        api.get('/api/users/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        .then(response => {
-          const updatedUser = { ...JSON.parse(userData), balance: response.data.balance };
-          localStorage.setItem('user', JSON.stringify(updatedUser));
-          setUser(updatedUser);
-        })
-        .catch(() => {
-          // Ignore errors on event-based updates
-        });
-      }
+      // Fetch fresh balance when event is triggered
+      api.get('/api/users/me')
+      .then(response => {
+        const updatedUser = {
+          id: response.data.id,
+          username: response.data.username,
+          balance: response.data.balance || 0,
+          role: response.data.role || 'user'
+        };
+        // Don't store user in localStorage for security
+        setUser(updatedUser);
+      })
+      .catch(() => {
+        // Ignore errors on event-based updates
+      });
     };
 
     window.addEventListener('userBalanceUpdated', handleBalanceUpdate);
     
     // Also refresh balance when user focuses the window/tab (e.g., after admin approves recharge)
     const handleFocus = () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        api.get('/api/users/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        .then(response => {
-          const userData = localStorage.getItem('user');
-          if (userData) {
-            const updatedUser = { ...JSON.parse(userData), balance: response.data.balance };
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-            setUser(updatedUser);
-          }
-        })
-        .catch(() => {
-          // Ignore errors on focus-based updates
-        });
-      }
+      // Fetch fresh user info when window focuses (don't store in localStorage)
+      api.get('/api/users/me')
+      .then(response => {
+        const updatedUser = {
+          id: response.data.id,
+          username: response.data.username,
+          balance: response.data.balance || 0,
+          role: response.data.role || 'user'
+        };
+        // Don't store user in localStorage for security
+        setUser(updatedUser);
+      })
+      .catch(() => {
+        // Ignore errors on focus-based updates
+      });
     };
     
     window.addEventListener('focus', handleFocus);
     
     return () => {
+      window.removeEventListener('userLoggedOut', handleLogout);
       window.removeEventListener('userBalanceUpdated', handleBalanceUpdate);
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Call logout API to invalidate session and clear cookie
+      await api.post('/api/users/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Continue with logout even if API call fails
+    }
+    
+    // Clear any remaining localStorage items
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionStorage.setItem('loggedOut', 'true');
+    
+    // Update state
     setUser(null);
+    
+    // Dispatch logout event
+    window.dispatchEvent(new Event('userLoggedOut'));
   };
 
   return (

@@ -56,28 +56,30 @@ function Profile() {
   };
 
   const fetchUserData = useCallback(async () => {
-    const token = localStorage.getItem('token');
     try {
-      const response = await api.get('/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUser(response.data);
+      const response = await api.get('/api/users/me');
+      // Backend /me returns fields at root; some older responses may nest under user
+      const userData = response.data?.user || response.data || null;
+      if (!userData) {
+        // If API returned but without user info, treat as unauthorized
+        navigate('/login');
+        return;
+      }
+      setUser(userData);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching user data:', error);
-      if (error.response?.status === 401 || error.response?.status === 403) {
+      if (error.response?.status === 401 || error.response?.status === 403 || error.response?.status === 404) {
         navigate('/login');
+        return;
       }
-    } finally {
       setLoading(false);
     }
   }, [navigate]);
 
   const fetchActivityLogs = useCallback(async () => {
-    const token = localStorage.getItem('token');
     try {
-      const response = await api.get(`/api/users/activity-log?page=${activityPage}&limit=10`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/api/users/activity-log?page=${activityPage}&limit=10`);
       setActivityLogs(response.data.logs || []);
       setActivityTotalPages(response.data.totalPages || 1);
     } catch (error) {
@@ -86,11 +88,8 @@ function Profile() {
   }, [activityPage]);
 
   const fetchBalanceHistory = useCallback(async (page = balancePage, limit = 7) => {
-    const token = localStorage.getItem('token');
     try {
-      const response = await api.get(`/api/users/balance-history?page=${page}&limit=${limit}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/api/users/balance-history?page=${page}&limit=${limit}`);
       setBalanceHistory(response.data.history || []);
       setBalanceTotalPages(response.data.totalPages || 1);
     } catch (error) {
@@ -99,11 +98,8 @@ function Profile() {
   }, [balancePage]);
 
   const fetchAccountHistory = useCallback(async () => {
-    const token = localStorage.getItem('token');
     try {
-      const response = await api.get(`/api/users/account-history?page=${accountPage}&limit=5`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/api/users/account-history?page=${accountPage}&limit=5`);
       setAccountHistory(response.data.history || []);
       setAccountTotalPages(response.data.totalPages || 1);
     } catch (error) {
@@ -112,11 +108,8 @@ function Profile() {
   }, [accountPage]);
 
   const fetchRechargeHistory = useCallback(async () => {
-    const token = localStorage.getItem('token');
     try {
-      const response = await api.get(`/api/recharge/my-recharges?page=${rechargePage}&limit=5`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/api/recharge/my-recharges?page=${rechargePage}&limit=5`);
       setRechargeHistory(response.data.recharges || []);
       setRechargeTotalPages(response.data.totalPages || 1);
     } catch (error) {
@@ -125,14 +118,7 @@ function Profile() {
   }, [rechargePage]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = JSON.parse(localStorage.getItem('user') || 'null');
-    
-    if (!token || !userData) {
-      navigate('/login');
-      return;
-    }
-
+    // Check if user is logged in by trying to fetch user data
     fetchUserData();
   }, [navigate, fetchUserData]);
 
@@ -162,14 +148,11 @@ function Profile() {
       return;
     }
 
-    const token = localStorage.getItem('token');
     try {
       await api.put('/api/users/change-password', {
         currentPassword,
         newPassword,
         confirmPassword
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert('Đổi mật khẩu thành công!');
       setCurrentPassword('');
@@ -180,11 +163,24 @@ function Profile() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Call logout API to invalidate session and clear cookie
+      await api.post('/api/users/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Continue with logout even if API call fails
+    }
+    
+    // Clear any remaining localStorage items
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    
+    // Dispatch logout event to update App state
+    window.dispatchEvent(new Event('userLoggedOut'));
+    
+    // Navigate to home
     navigate('/');
-    window.location.reload();
   };
 
   const formatDate = (dateString) => {

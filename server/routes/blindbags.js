@@ -1,44 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const BlindBag = require('../models/BlindBag');
 const { validateObjectId } = require('../utils/validation');
-const { getJWTSecret } = require('../utils/auth');
 const BlindBagAccount = require('../models/BlindBagAccount');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const BalanceHistory = require('../models/BalanceHistory');
-
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  jwt.verify(token, getJWTSecret(), (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: 'Token không hợp lệ' });
-    }
-    req.userId = decoded.userId;
-    next();
-  });
-};
-
-// Middleware to check admin role
-const checkAdmin = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.userId);
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ message: 'Không có quyền truy cập' });
-    }
-    next();
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+const { authenticateSession, authenticateAdminSession } = require('../middleware/sessionAuth');
 
 // Get all blind bags (public)
 router.get('/', async (req, res) => {
@@ -116,7 +84,7 @@ router.get('/:id/stats', async (req, res) => {
 });
 
 // Create blind bag (admin only)
-router.post('/', authenticateToken, checkAdmin, async (req, res) => {
+router.post('/', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     const { game, premiumRate, image, info, originalPrice, discountedPrice } = req.body;
 
@@ -150,7 +118,7 @@ router.post('/', authenticateToken, checkAdmin, async (req, res) => {
 });
 
 // Update blind bag (admin only)
-router.put('/:id', authenticateToken, checkAdmin, async (req, res) => {
+router.put('/:id', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId
     if (!validateObjectId(req.params.id)) {
@@ -201,7 +169,7 @@ router.put('/:id', authenticateToken, checkAdmin, async (req, res) => {
 });
 
 // Delete blind bag (admin only)
-router.delete('/:id', authenticateToken, checkAdmin, async (req, res) => {
+router.delete('/:id', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId
     if (!validateObjectId(req.params.id)) {
@@ -228,7 +196,7 @@ router.delete('/:id', authenticateToken, checkAdmin, async (req, res) => {
 });
 
 // Add account to blind bag (admin only)
-router.post('/:id/accounts', authenticateToken, checkAdmin, async (req, res) => {
+router.post('/:id/accounts', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     const { username, password, accountType } = req.body;
 
@@ -297,7 +265,7 @@ router.post('/:id/accounts', authenticateToken, checkAdmin, async (req, res) => 
 });
 
 // Get all accounts in a blind bag (admin only)
-router.get('/:id/accounts', authenticateToken, checkAdmin, async (req, res) => {
+router.get('/:id/accounts', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -324,7 +292,7 @@ router.get('/:id/accounts', authenticateToken, checkAdmin, async (req, res) => {
 });
 
 // Get account detail (admin only)
-router.get('/accounts/:accountId', authenticateToken, checkAdmin, async (req, res) => {
+router.get('/accounts/:accountId', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     const account = await BlindBagAccount.findById(req.params.accountId)
       .populate('blindBagId', 'game image info')
@@ -341,7 +309,7 @@ router.get('/accounts/:accountId', authenticateToken, checkAdmin, async (req, re
 });
 
 // Purchase blind bag (user)
-router.post('/:id/purchase', authenticateToken, async (req, res) => {
+router.post('/:id/purchase', authenticateSession, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) {
@@ -449,7 +417,7 @@ router.post('/:id/purchase', authenticateToken, async (req, res) => {
 });
 
 // Get all blind bag accounts with filters (admin only)
-router.get('/admin/accounts/all', authenticateToken, checkAdmin, async (req, res) => {
+router.get('/admin/accounts/all', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
@@ -487,7 +455,7 @@ router.get('/admin/accounts/all', authenticateToken, checkAdmin, async (req, res
 });
 
 // Update blind bag account (admin only)
-router.put('/accounts/:accountId', authenticateToken, checkAdmin, async (req, res) => {
+router.put('/accounts/:accountId', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     const { username, password, accountType } = req.body;
 
@@ -529,7 +497,7 @@ router.put('/accounts/:accountId', authenticateToken, checkAdmin, async (req, re
 });
 
 // Delete blind bag account (admin only) - only if sold
-router.delete('/accounts/:accountId', authenticateToken, checkAdmin, async (req, res) => {
+router.delete('/accounts/:accountId', authenticateSession, authenticateAdminSession, async (req, res) => {
   try {
     const account = await BlindBagAccount.findById(req.params.accountId);
     if (!account) {

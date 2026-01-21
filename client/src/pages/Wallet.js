@@ -45,9 +45,7 @@ function Wallet() {
       const totalRechargedAmount = completedRecharges.reduce((sum, r) => sum + (r.amount || 0), 0);
       setTotalRecharged(totalRechargedAmount);
       
-      // Update user in localStorage
-      const updatedUser = { ...JSON.parse(localStorage.getItem('user')), balance: userRes.data.balance };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Don't store user in localStorage for security
       // Dispatch event to update balance in Navbar
       window.dispatchEvent(new Event('userBalanceUpdated'));
     } catch (error) {

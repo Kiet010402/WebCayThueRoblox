@@ -8,8 +8,9 @@ const Account = require('../models/Account');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-const { getJWTSecret } = require('../utils/auth');
+const { getJWTSecret, createSession, invalidateSession, invalidateAllOtherSessions } = require('../utils/auth');
 const { validatePassword, validateEmail, validateUsername, sanitizeString } = require('../utils/validation');
+const { authenticateSession } = require('../middleware/sessionAuth');
 
 // Register
 router.post('/register', async (req, res) => {
@@ -50,18 +51,34 @@ router.post('/register', async (req, res) => {
 
     await user.save();
 
-    const token = jwt.sign({ userId: user._id }, getJWTSecret(), {
-      expiresIn: '7d'
+    // Create session and get token
+    const token = await createSession(user._id, req);
+
+    // Set httpOnly cookie (secure, httpOnly, sameSite for CSRF protection)
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      secure: isProduction, // Only send over HTTPS in production
+      sameSite: isProduction ? 'strict' : 'lax', // CSRF protection
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/'
     });
 
+    // Log activity
+    await ActivityLog.create({
+      userId: user._id,
+      action: 'Đăng ký tài khoản mới',
+      ipAddress: req.ip || req.connection.remoteAddress
+    });
+
+    // Return minimal user info (no token, no sensitive data)
     res.status(201).json({
-      token,
       user: {
         id: user._id,
         username: user.username,
-        email: user.email,
         balance: user.balance || 0,
         role: user.role || 'user'
+        // Don't send email or other sensitive info
       }
     });
   } catch (error) {
@@ -232,6 +249,23 @@ router.post('/login', async (req, res) => {
     user.device = req.headers['user-agent'] || '';
     await user.save();
 
+    // Invalidate all other sessions for this user (optional: for security)
+    // Uncomment if you want to force single session per user:
+    // await invalidateAllOtherSessions(user._id, null);
+
+    // Create session and get token
+    const token = await createSession(user._id, req);
+
+    // Set httpOnly cookie
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/'
+    });
+
     // Log activity
     await ActivityLog.create({
       userId: user._id,
@@ -239,16 +273,11 @@ router.post('/login', async (req, res) => {
       ipAddress: req.ip || req.connection.remoteAddress
     });
 
-    const token = jwt.sign({ userId: user._id }, getJWTSecret(), {
-      expiresIn: '7d'
-    });
-
+    // Return minimal user info (no token, no email)
     res.json({
-      token,
       user: {
         id: user._id,
         username: user.username,
-        email: user.email,
         balance: user.balance || 0,
         role: user.role || 'user'
       }
@@ -258,24 +287,16 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Get current user info
-router.get('/me', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
+// Get current user info (using session auth)
+router.get('/me', authenticateSession, async (req, res) => {
   try {
-    const decoded = jwt.verify(token, getJWTSecret());
-    const user = await User.findById(decoded.userId).select('-password');
+    const user = await User.findById(req.userId).select('-password -adminLoginCode -adminLoginCodeExpires -resetPasswordCode -resetPasswordExpires');
     if (!user) return res.status(404).json({ message: 'User not found' });
     
+    // Return minimal user info (no email or sensitive data)
     res.json({
       id: user._id,
       username: user.username,
-      email: user.email,
       fullName: user.fullName || '',
       phone: user.phone || '',
       telegramChatId: user.telegramChatId || '',
@@ -283,36 +304,52 @@ router.get('/me', async (req, res) => {
       discount: user.discount || 0,
       role: user.role || 'user',
       createdAt: user.createdAt,
-      lastLogin: user.lastLogin,
-      device: user.device
+      lastLogin: user.lastLogin
+      // Don't send email, device, or other sensitive info
     });
   } catch (error) {
-    res.status(403).json({ message: 'Token không hợp lệ' });
+    res.status(500).json({ message: 'Lỗi khi lấy thông tin user' });
+  }
+});
+
+// Logout endpoint
+router.post('/logout', authenticateSession, async (req, res) => {
+  try {
+    // Get token from cookie or header
+    const token = req.cookies?.authToken || (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
+    
+    if (token) {
+      await invalidateSession(token);
+    }
+    
+    // Clear cookie
+    res.clearCookie('authToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      path: '/'
+    });
+    
+    res.json({ message: 'Đăng xuất thành công' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
 // Get activity log
-router.get('/activity-log', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
+router.get('/activity-log', authenticateSession, async (req, res) => {
   try {
-    const decoded = jwt.verify(token, getJWTSecret());
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
     const [logs, total] = await Promise.all([
-      ActivityLog.find({ userId: decoded.userId })
+      ActivityLog.find({ userId: req.userId })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      ActivityLog.countDocuments({ userId: decoded.userId })
+      ActivityLog.countDocuments({ userId: req.userId })
     ]);
 
     res.json({
@@ -327,27 +364,19 @@ router.get('/activity-log', async (req, res) => {
 });
 
 // Get balance history
-router.get('/balance-history', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
+router.get('/balance-history', authenticateSession, async (req, res) => {
   try {
-    const decoded = jwt.verify(token, getJWTSecret());
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 7;
     const skip = (page - 1) * limit;
 
     const [history, total] = await Promise.all([
-      BalanceHistory.find({ userId: decoded.userId })
+      BalanceHistory.find({ userId: req.userId })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      BalanceHistory.countDocuments({ userId: decoded.userId })
+      BalanceHistory.countDocuments({ userId: req.userId })
     ]);
 
     res.json({
@@ -362,16 +391,8 @@ router.get('/balance-history', async (req, res) => {
 });
 
 // Change password
-router.put('/change-password', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
+router.put('/change-password', authenticateSession, async (req, res) => {
   try {
-    const decoded = jwt.verify(token, getJWTSecret());
     let { currentPassword, newPassword, confirmPassword } = req.body;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -393,7 +414,7 @@ router.put('/change-password', async (req, res) => {
       return res.status(400).json({ message: 'Mật khẩu mới phải có ít nhất 6 ký tự' });
     }
 
-    const user = await User.findById(decoded.userId);
+    const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const isMatch = await user.comparePassword(currentPassword);
@@ -919,6 +940,22 @@ router.post('/verify-admin-code', async (req, res) => {
     user.device = req.headers['user-agent'] || '';
     await user.save();
 
+    // Invalidate all other sessions for admin (force single session)
+    // await invalidateAllOtherSessions(user._id, null);
+
+    // Create session and get token
+    const token = await createSession(user._id, req);
+
+    // Set httpOnly cookie
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/'
+    });
+
     // Log activity
     await ActivityLog.create({
       userId: user._id,
@@ -926,16 +963,11 @@ router.post('/verify-admin-code', async (req, res) => {
       ipAddress: req.ip || req.connection.remoteAddress
     });
 
-    const token = jwt.sign({ userId: user._id }, getJWTSecret(), {
-      expiresIn: '7d'
-    });
-
+    // Return minimal user info (no token, no email)
     res.json({
-      token,
       user: {
         id: user._id,
         username: user.username,
-        email: user.email,
         balance: user.balance || 0,
         role: user.role || 'admin'
       }
@@ -947,16 +979,8 @@ router.post('/verify-admin-code', async (req, res) => {
 });
 
 // Get account purchase history
-router.get('/account-history', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
+router.get('/account-history', authenticateSession, async (req, res) => {
   try {
-    const decoded = jwt.verify(token, getJWTSecret());
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
     const skip = (page - 1) * limit;
@@ -964,7 +988,7 @@ router.get('/account-history', async (req, res) => {
     // Get orders of type 'account'
     const [orders, total] = await Promise.all([
       Order.find({ 
-        userId: decoded.userId,
+        userId: req.userId,
         orderType: 'account'
       })
         .sort({ createdAt: -1 })
@@ -972,7 +996,7 @@ router.get('/account-history', async (req, res) => {
         .limit(limit)
         .lean(),
       Order.countDocuments({ 
-        userId: decoded.userId,
+        userId: req.userId,
         orderType: 'account'
       })
     ]);

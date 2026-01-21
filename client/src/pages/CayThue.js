@@ -17,19 +17,15 @@ function CayThue() {
   const [orderDetails, setOrderDetails] = useState(null);
   
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = JSON.parse(localStorage.getItem('user') || 'null');
-    if (token && userData) {
-      // Fetch latest user info to get discount
-      api.get('/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      }).then(response => {
+    // Fetch user info from API (using session cookie)
+    api.get('/api/users/me')
+      .then(response => {
         setUser(response.data);
-      }).catch(err => {
+      })
+      .catch(err => {
         console.error('Error fetching user:', err);
-        setUser(userData);
+        setUser(null);
       });
-    }
   }, []);
 
   useEffect(() => {
@@ -120,15 +116,6 @@ function CayThue() {
   };
 
   const handleApplyVoucher = async () => {
-    const token = localStorage.getItem('token');
-    const userData = JSON.parse(localStorage.getItem('user') || 'null');
-
-    if (!token || !userData) {
-      alert('Vui lòng đăng nhập để áp dụng voucher');
-      navigate('/login');
-      return;
-    }
-
     if (!selectedService) {
       alert('Vui lòng chọn dịch vụ trước khi áp dụng voucher');
       return;
@@ -156,9 +143,6 @@ function CayThue() {
           code: voucherCode.trim().toUpperCase(),
           amount: servicePrice,
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
       );
 
       if (res.data?.valid) {
@@ -172,6 +156,14 @@ function CayThue() {
       }
     } catch (error) {
       console.error('Voucher apply error:', error.response?.data || error.message);
+
+      // Nếu chưa đăng nhập hoặc phiên hết hạn → báo đăng nhập lại
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        alert('Vui lòng đăng nhập để áp dụng voucher');
+        navigate('/login');
+        return;
+      }
+
       const msg = error.response?.data?.message || 'Voucher không hợp lệ';
       setVoucherMessage(msg);
       setAppliedVoucher(null);
@@ -185,15 +177,6 @@ function CayThue() {
     
     // Prevent multiple submissions
     if (isSubmitting) {
-      return;
-    }
-    
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    
-    if (!user || !token) {
-      alert('Vui lòng đăng nhập để đặt dịch vụ');
-      navigate('/login');
       return;
     }
     
@@ -241,24 +224,11 @@ function CayThue() {
         backupCode: formData.backupCode || ''
       };
 
-      const response = await api.post('/api/orders', orderData, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const response = await api.post('/api/orders', orderData);
 
-      // Refresh user balance
-      try {
-        const userRes = await api.get('/api/users/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const updatedUser = { ...user, balance: userRes.data.balance };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        // Dispatch event to update App state
-        window.dispatchEvent(new Event('userBalanceUpdated'));
-      } catch (err) {
-        console.error('Error refreshing balance:', err);
-      }
+      // Refresh user balance (don't store in localStorage)
+      // Dispatch event to update App state
+      window.dispatchEvent(new Event('userBalanceUpdated'));
 
       // Store order details and show success modal
       const order = response.data;
@@ -289,6 +259,14 @@ function CayThue() {
       setVoucherMessage('');
     } catch (error) {
       console.error('Error creating order:', error);
+
+      // Nếu phiên đăng nhập hết hạn hoặc chưa đăng nhập
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        alert('Vui lòng đăng nhập để đặt dịch vụ');
+        navigate('/login');
+        return;
+      }
+
       const errorMsg = error.response?.data?.message || 'Có lỗi xảy ra khi đặt dịch vụ. Vui lòng thử lại.';
       alert(errorMsg);
     } finally {
@@ -698,7 +676,13 @@ function CayThue() {
                   
                   <div className="summary-row">
                     <span className="summary-label-compact">- Khuyến mãi:</span>
-                    <span className="summary-value-compact discount">{orderDetails.gameDiscountPercent || 0}%</span>
+                    <span className="summary-value-compact discount">
+                      {(
+                        Number(orderDetails.gameDiscountPercent || 0) +
+                        Number(orderDetails.discount || 0) +
+                        Number(orderDetails.voucherDiscount || 0)
+                      )}%
+                    </span>
                   </div>
                   
                   <div className="summary-row total">

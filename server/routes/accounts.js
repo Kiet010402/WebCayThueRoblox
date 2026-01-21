@@ -4,32 +4,8 @@ const Account = require('../models/Account');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const Game = require('../models/Game');
-const jwt = require('jsonwebtoken');
-const { getJWTSecret } = require('../utils/auth');
 const { validateObjectId } = require('../utils/validation');
-
-// Middleware to verify token
-const authenticate = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, getJWTSecret());
-    const user = await User.findById(decoded.userId);
-    if (!user) {
-      return res.status(403).json({ message: 'User không tồn tại' });
-    }
-    req.userId = decoded.userId;
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: 'Token không hợp lệ' });
-  }
-};
+const { authenticateSession } = require('../middleware/sessionAuth');
 
 // Get games with stats (available and sold counts)
 router.get('/games-stats', async (req, res) => {
@@ -137,7 +113,7 @@ router.get('/by-game/:gameName', async (req, res) => {
 });
 
 // Purchase account
-router.post('/:id/purchase', authenticate, async (req, res) => {
+router.post('/:id/purchase', authenticateSession, async (req, res) => {
   try {
     // Validate ObjectId
     if (!validateObjectId(req.params.id)) {

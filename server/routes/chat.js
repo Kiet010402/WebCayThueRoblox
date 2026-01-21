@@ -2,29 +2,10 @@ const express = require('express');
 const router = express.Router();
 const Message = require('../models/Message');
 const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const { getJWTSecret } = require('../utils/auth');
-
-// Middleware to authenticate user
-const authenticate = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, getJWTSecret());
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: 'Token không hợp lệ' });
-  }
-};
+const { authenticateSession } = require('../middleware/sessionAuth');
 
 // Get list of admins (for users)
-router.get('/admins', authenticate, async (req, res) => {
+router.get('/admins', authenticateSession, async (req, res) => {
   try {
     const admins = await User.find({ role: 'admin' })
       .select('_id username email')
@@ -38,7 +19,7 @@ router.get('/admins', authenticate, async (req, res) => {
 });
 
 // Send a message (user to admin or admin to user)
-router.post('/send', authenticate, async (req, res) => {
+router.post('/send', authenticateSession, async (req, res) => {
   try {
     const { receiverId, message } = req.body;
 
@@ -83,7 +64,7 @@ router.post('/send', authenticate, async (req, res) => {
 });
 
 // Get messages between current user and another user
-router.get('/messages/:userId', authenticate, async (req, res) => {
+router.get('/messages/:userId', authenticateSession, async (req, res) => {
   try {
     const { userId } = req.params;
     const page = parseInt(req.query.page) || 1;
@@ -130,7 +111,7 @@ router.get('/messages/:userId', authenticate, async (req, res) => {
 });
 
 // Get all conversations for current user
-router.get('/conversations', authenticate, async (req, res) => {
+router.get('/conversations', authenticateSession, async (req, res) => {
   try {
     const mongoose = require('mongoose');
     const currentUser = await User.findById(req.userId);
@@ -217,7 +198,7 @@ router.get('/conversations', authenticate, async (req, res) => {
 });
 
 // Get unread message count for current user
-router.get('/unread-count', authenticate, async (req, res) => {
+router.get('/unread-count', authenticateSession, async (req, res) => {
   try {
     const count = await Message.countDocuments({
       receiverId: req.userId,
@@ -232,7 +213,7 @@ router.get('/unread-count', authenticate, async (req, res) => {
 });
 
 // Delete conversation between current user and another user
-router.delete('/conversation/:userId', authenticate, async (req, res) => {
+router.delete('/conversation/:userId', authenticateSession, async (req, res) => {
   try {
     const { userId } = req.params;
 

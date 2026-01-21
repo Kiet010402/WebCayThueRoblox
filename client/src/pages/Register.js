@@ -63,9 +63,16 @@ function Register({ setUser }) {
         robloxUsername: formData.robloxUsername
       });
 
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      setUser(response.data.user);
+      // Token is now stored in httpOnly cookie, don't save to localStorage
+      // Only save minimal user info
+      const userInfo = {
+        id: response.data.user.id,
+        username: response.data.user.username,
+        balance: response.data.user.balance || 0,
+        role: response.data.user.role || 'user'
+      };
+      // Don't store user in localStorage for security
+      setUser(userInfo);
       setSuccess('✅ Đăng ký thành công! Đang chuyển hướng...');
       
       setTimeout(() => {

@@ -16,6 +16,20 @@ function Home() {
   const [loadingBlindBags, setLoadingBlindBags] = useState(true);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchasedAccount, setPurchasedAccount] = useState(null);
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    // Fetch user info from API (using session cookie)
+    api.get('/api/users/me')
+      .then(response => {
+        setUser(response.data);
+      })
+      .catch(err => {
+        console.error('Error fetching user:', err);
+        setUser(null);
+      });
+  }, []);
 
   useEffect(() => {
     const fetchAnnouncement = async () => {
@@ -87,8 +101,27 @@ function Home() {
       }
     };
     
+    // Fetch recent activities for ticker
+    const fetchRecentActivities = async () => {
+      try {
+        const res = await api.get('/api/activities/recent?limit=20');
+        setRecentActivities(res.data.activities || []);
+      } catch (error) {
+        console.error('Error fetching recent activities:', error);
+        setRecentActivities([]);
+      }
+    };
+    
     fetchGames();
     fetchBlindBags();
+    fetchRecentActivities();
+    
+    // Refresh activities every 30 seconds
+    const activitiesInterval = setInterval(fetchRecentActivities, 30000);
+    
+    return () => {
+      clearInterval(activitiesInterval);
+    };
   }, []);
 
   const handleCloseModal = () => {
@@ -126,6 +159,22 @@ function Home() {
 
   return (
     <div className="home">
+      {/* Activity Ticker */}
+      {recentActivities.length > 0 && (
+        <div className="activity-ticker-container">
+          <div className="activity-ticker-label">🎉</div>
+          <div className="activity-ticker-wrapper">
+            <div className="activity-ticker-content">
+              {[...recentActivities, ...recentActivities].map((activity, index) => (
+                <span key={`${activity.createdAt}-${index}`} className="activity-item">
+                  {activity.message} • 
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="notices-section announcement-top">
         <h2 className="section-title">{announcement.title || '⚠️ THÔNG BÁO'}</h2>
         <div className="notice-card">
@@ -202,17 +251,15 @@ function Home() {
                         return;
                       }
                       
-                      const token = localStorage.getItem('token');
-                      const userData = JSON.parse(localStorage.getItem('user') || 'null');
-                      
-                      if (!token || !userData) {
+                      // Check if user is logged in
+                      if (!user) {
                         alert('Vui lòng đăng nhập để mua túi mù');
                         navigate('/login');
                         return;
                       }
                       
                       const finalPrice = blindBag.discountedPrice;
-                      if (userData.balance < finalPrice) {
+                      if (user.balance < finalPrice) {
                         alert('Số dư không đủ! Vui lòng nạp thêm tiền.');
                         navigate('/recharge');
                         return;
@@ -223,9 +270,7 @@ function Home() {
                       }
                       
                       try {
-                        const res = await api.post(`/api/blindbags/${blindBag._id}/purchase`, {}, {
-                          headers: { Authorization: `Bearer ${token}` }
-                        });
+                        const res = await api.post(`/api/blindbags/${blindBag._id}/purchase`, {});
                         
                         // Set purchased account info for modal
                         setPurchasedAccount({
@@ -236,9 +281,7 @@ function Home() {
                         });
                         setShowPurchaseModal(true);
                         
-                        // Update user balance
-                        const updatedUser = { ...userData, balance: res.data.newBalance };
-                        localStorage.setItem('user', JSON.stringify(updatedUser));
+                        // Update user balance (don't store in localStorage)
                         window.dispatchEvent(new Event('userBalanceUpdated'));
                         
                         // Refresh blind bags list

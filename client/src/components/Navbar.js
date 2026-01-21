@@ -17,7 +17,11 @@ function Navbar({ user, onLogout }) {
     <nav className="navbar">
       <div className="navbar-container">
         <Link to="/" className="navbar-logo" onClick={closeMenu}>
-          KAIHONSHOP
+          <img
+            src="https://media.discordapp.net/attachments/1324272692114886687/1462828286773039175/Thiet_ke_chua_co_ten.gif?ex=696f9c81&is=696e4b01&hm=1a6e5015482ff6af1398eb01b3bc2c446eceafff96432bf87a6fb7366be2a43c&="
+            alt="KAIHONSHOP"
+            className="navbar-logo-img"
+          />
         </Link>
         <div className="navbar-right">
           {user && (

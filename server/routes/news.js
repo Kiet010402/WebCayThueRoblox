@@ -1,32 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const News = require('../models/News');
-const User = require('../models/User');
-const { getJWTSecret } = require('../utils/auth');
 const { validateObjectId } = require('../utils/validation');
-
-// Middleware to verify admin
-const authenticateAdmin = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, getJWTSecret());
-    const user = await User.findById(decoded.userId);
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ message: 'Không có quyền truy cập' });
-    }
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: 'Token không hợp lệ' });
-  }
-};
+const { authenticateAdminSession } = require('../middleware/sessionAuth');
 
 // Get all news (public)
 router.get('/', async (req, res) => {
@@ -54,7 +30,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create news (admin only)
-router.post('/', authenticateAdmin, async (req, res) => {
+router.post('/', authenticateAdminSession, async (req, res) => {
   try {
     const { title, content, category, url } = req.body;
     
@@ -77,7 +53,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
 });
 
 // Update news (admin only)
-router.put('/:id', authenticateAdmin, async (req, res) => {
+router.put('/:id', authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId
     if (!validateObjectId(req.params.id)) {
@@ -101,7 +77,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Delete news (admin only)
-router.delete('/:id', authenticateAdmin, async (req, res) => {
+router.delete('/:id', authenticateAdminSession, async (req, res) => {
   try {
     // Validate ObjectId
     if (!validateObjectId(req.params.id)) {

@@ -1,28 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const Voucher = require('../models/Voucher');
-
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token không tồn tại' });
-  }
-
-  jwt.verify(token, getJWTSecret(), (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: 'Token không hợp lệ' });
-    }
-    req.userId = decoded.userId;
-    next();
-  });
-};
+const { authenticateSession } = require('../middleware/sessionAuth');
 
 // Validate and preview voucher for a given order amount
-router.post('/apply', authenticateToken, async (req, res) => {
+router.post('/apply', authenticateSession, async (req, res) => {
   try {
     const { code, amount } = req.body;
 
