@@ -59,7 +59,8 @@ router.post('/register', async (req, res) => {
     res.cookie('authToken', token, {
       httpOnly: true,
       secure: isProduction, // Only send over HTTPS in production
-      sameSite: isProduction ? 'strict' : 'lax', // CSRF protection
+      // Use 'none' in production to allow cookies when frontend and API are on different domains (Render)
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/'
     });
@@ -261,7 +262,8 @@ router.post('/login', async (req, res) => {
     res.cookie('authToken', token, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      // Use 'none' in production to allow cross-site cookie on Render
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/'
     });
@@ -326,7 +328,8 @@ router.post('/logout', authenticateSession, async (req, res) => {
     res.clearCookie('authToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      // Match cookie settings used when setting the cookie
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/'
     });
     
@@ -951,7 +954,8 @@ router.post('/verify-admin-code', async (req, res) => {
     res.cookie('authToken', token, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      // Use 'none' in production to allow cross-site cookie on Render
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/'
     });
